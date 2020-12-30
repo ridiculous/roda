@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "opts" do
   it "is inheritable and allows overriding" do

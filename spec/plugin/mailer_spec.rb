@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 begin
   require 'mail'
@@ -84,8 +84,8 @@ describe "mailer plugin" do
       end
     end
 
-    app.mail('/foo', 1, 2).must_equal nil
-    app.sendmail('/foo', 1, 2).must_equal nil
+    app.mail('/foo', 1, 2).must_be_nil
+    app.sendmail('/foo', 1, 2).must_be_nil
     deliveries.must_equal []
   end
 
@@ -102,7 +102,7 @@ describe "mailer plugin" do
     m.attachments.first.content_type.must_match(/mailer_spec\.rb/)
     m.content_type.must_match(/\Amultipart\/mixed/)
     m.parts.length.must_equal 1
-    m.parts.first.body.must_be :==, File.read(__FILE__)
+    m.parts.first.body.decoded.gsub("\r\n", "\n").must_equal File.read(__FILE__)
   end
 
   it "supports attachments with blocks" do
@@ -120,7 +120,7 @@ describe "mailer plugin" do
     m.attachments.first.content_type.must_equal 'text/foo'
     m.content_type.must_match(/\Amultipart\/mixed/)
     m.parts.length.must_equal 1
-    m.parts.first.body.must_be :==, File.read(__FILE__)
+    m.parts.first.body.decoded.gsub("\r\n", "\n").must_equal File.read(__FILE__)
   end
 
   it "supports plain-text attachments with an email body" do
@@ -143,9 +143,32 @@ describe "mailer plugin" do
     m.content_type.must_match(/\Amultipart\/mixed/)
   end
 
+  it "does not override explicit content type for non-plain/text bodies in multipart emails" do
+    app(:mailer) do |r|
+      r.mail do
+        instance_exec(&setup_email)
+        response.headers['Content-Type'] = 'text/plain'
+        response.mail.body 'c'
+        response.mail.add_file :filename=>'a.html', :content=>'b'
+        response.mail.parts.first.content_type = 'text/html'
+        nil
+      end
+    end
+
+    m = app.mail('foo')
+    m.parts.length.must_equal 2
+    m.parts.first.content_type.must_match(/text\/html/)
+    m.parts.first.body.must_be :==, 'c'
+    m.parts.last.content_type.must_match(/text\/html/)
+    m.parts.last.body.must_be :==, 'b'
+    m.attachments.length.must_equal 1
+    m.attachments.first.content_type.must_match(/a\.html/)
+    m.content_type.must_match(/\Amultipart\/mixed/)
+  end
+
   it "supports regular web requests in same application" do
     app(:mailer) do |r|
-      r.get "foo/:bar" do |bar|
+      r.get "foo", :bar do |bar|
         "foo#{bar}"
       end
       r.mail "bar" do
@@ -156,6 +179,20 @@ describe "mailer plugin" do
 
     body("/foo/baz", 'rack.input'=>StringIO.new).must_equal 'foobaz'
     app.mail('/bar').body.must_be :==, 'b'
+  end
+
+  it "should not have r.mail handle non-mail requests" do
+    app(:mailer) do |r|
+      r.mail "bar" do
+        instance_exec(&setup_email)
+        "b"
+      end
+      r.get "bar" do
+        "foo"
+      end
+    end
+
+    body("/bar").must_equal 'foo'
   end
 
   it "supports multipart email using text_part/html_pat" do
@@ -242,7 +279,41 @@ describe "mailer plugin" do
     m.parts.first.content_type.must_match(/\Atext\/html/)
     m.parts.first.body.must_be :==, "a"
     m.parts.last.content_type.must_match(/\Atext\/css/)
-    m.parts.last.body.must_be :==, File.read('spec/assets/css/raw.css')
+    m.parts.last.body.decoded.gsub("\r\n", "\n").must_equal File.read('spec/assets/css/raw.css')
+  end
+
+  it "works with route_block_args plugin" do
+    app(:bare) do
+      plugin :mailer
+      plugin :route_block_args do
+        [request.path]
+      end
+      route do |path|
+        path
+      end
+    end
+    app.mail('/').body.decoded.must_equal '/'
+    app.mail('/foo').body.decoded.must_equal '/foo'
+  end
+
+  it "works with hooks plugin" do
+    x = []
+    app(:bare) do
+      plugin :mailer
+      plugin :hooks
+      before do 
+        x << 1
+      end
+      after do
+        x << 2
+      end
+      route do
+        x << 3
+        ''
+      end
+    end
+    app.mail('/').body.decoded.must_equal ''
+    x.must_equal [1, 3, 2]
   end
 end
 end

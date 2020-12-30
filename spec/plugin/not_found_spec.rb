@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "not_found plugin" do 
   it "executes on no arguments" do
@@ -64,7 +64,7 @@ describe "not_found plugin" do
     end
 
     header('Content-Type').must_equal 'text/html'
-    header('Foo').must_equal nil
+    header('Foo').must_be_nil
   end
 
   it "does not modify behavior if not_found is not called" do

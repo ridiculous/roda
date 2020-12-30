@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "request.path, .remaining_path, and .matched_path" do
   it "should return the script name and path_info as a string" do
@@ -9,6 +9,18 @@ describe "request.path, .remaining_path, and .matched_path" do
     end
 
     body("/foo/bar").must_equal  "/foo/bar:/foo:/bar"
+  end
+end
+
+describe "request.real_remaining_path" do
+  it "should be an alias of remaining_path" do
+    app do |r|
+      r.on "foo" do
+        "#{r.remaining_path}:#{r.real_remaining_path}"
+      end
+    end
+
+    body("/foo/bar").must_equal "/bar:/bar"
   end
 end
 

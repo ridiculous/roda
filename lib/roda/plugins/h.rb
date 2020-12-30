@@ -14,11 +14,43 @@ class Roda
     #     h('<foo>')
     #   end
     module H
-      module InstanceMethods
-        # HTML escape the input and return the escaped version.
-        def h(s)
-          ::Rack::Utils.escape_html(s.to_s)
+      begin
+        require 'cgi/escape'
+        unless CGI.respond_to?(:escapeHTML) # work around for JRuby 9.1
+          # :nocov:
+          CGI = Object.new
+          CGI.extend(defined?(::CGI::Escape) ? ::CGI::Escape : ::CGI::Util)
+          # :nocov:
         end
+
+        module InstanceMethods
+          # HTML escape the input and return the escaped version.
+          def h(string)
+            CGI.escapeHTML(string.to_s)
+          end
+        end
+      rescue LoadError
+        # :nocov:
+
+        # A Hash of entities and their escaped equivalents,
+        # to be escaped by h().
+        ESCAPE_HTML = {
+          "&" => "&amp;".freeze,
+          "<" => "&lt;".freeze,
+          ">" => "&gt;".freeze,
+          "'" => "&#39;".freeze,
+          '"' => "&quot;".freeze,
+        }.freeze
+
+        # A Regexp of HTML entities to match for escaping.
+        ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
+
+        module InstanceMethods
+          def h(string)
+            string.to_s.gsub(ESCAPE_HTML_PATTERN){|c| ESCAPE_HTML[c] }
+          end
+        end
+        # :nocov:
       end
     end
 

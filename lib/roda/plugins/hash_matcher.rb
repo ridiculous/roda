@@ -8,11 +8,11 @@ class Roda
     #
     #   class App < Roda
     #     hash_matcher(:foo) do |v|
-    #       self['foo'] == v
+    #       params['foo'] == v
     #     end
     #
     #     route do
-    #       r.on :foo=>'bar' do
+    #       r.on foo: 'bar' do
     #         # matches when param foo has value bar
     #       end
     #     end
@@ -25,7 +25,9 @@ class Roda
         # match, and anything else to match.  See the HashMatcher module
         # documentation for an example.
         def hash_matcher(key, &block)
-          self::RodaRequest.send(:define_method, :"match_#{key}", &block)
+          meth = :"match_#{key}"
+          self::RodaRequest.send(:define_method, meth, &block)
+          self::RodaRequest.send(:private, meth)
         end
       end
     end

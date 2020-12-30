@@ -52,21 +52,21 @@ class Roda
         # Delegate the given methods to the class
         def class_delegate(*meths)
           meths.each do |meth|
-            define_method(meth){|*a, &block| self.class.send(meth, *a, &block)}
+            define_method(meth){|*a, &block| self.class.public_send(meth, *a, &block)}
           end
         end
 
         # Delegate the given methods to the request
         def request_delegate(*meths)
           meths.each do |meth|
-            define_method(meth){|*a, &block| @_request.send(meth, *a, &block)}
+            define_method(meth){|*a, &block| @_request.public_send(meth, *a, &block)}
           end
         end
 
         # Delegate the given methods to the response
         def response_delegate(*meths)
           meths.each do |meth|
-            define_method(meth){|*a, &block| @_response.send(meth, *a, &block)}
+            define_method(meth){|*a, &block| @_response.public_send(meth, *a, &block)}
           end
         end
       end

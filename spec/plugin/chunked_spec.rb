@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 begin
   require 'tilt/erb'
@@ -31,6 +31,7 @@ describe "chunked plugin" do
 
   it "accepts a block that is called after layout yielding but before content when streaming" do
     app(:chunked) do |r|
+      @h = nil
       chunked(:inline=>'m<%= @h %>', :layout=>{:inline=>'<%= @h %><%= yield %>t'}) do
         @h = 'h'
       end
@@ -113,7 +114,7 @@ describe "chunked plugin" do
       response.write chunked(:inline=>'m', :layout=>{:inline=>'h<%= yield %>t'})
     end
 
-    header('Content-Length', 'HTTP_VERSION'=>'HTTP/1.1').must_equal nil
+    header('Content-Length', 'HTTP_VERSION'=>'HTTP/1.1').must_be_nil
     header('Content-Length', 'HTTP_VERSION'=>'HTTP/1.0').must_equal '4'
   end
 
@@ -135,7 +136,7 @@ describe "chunked plugin" do
     end
 
     header('Transfer-Encoding', 'HTTP_VERSION'=>'HTTP/1.1').must_equal 'chunked'
-    header('Transfer-Encoding', 'HTTP_VERSION'=>'HTTP/1.0').must_equal nil
+    header('Transfer-Encoding', 'HTTP_VERSION'=>'HTTP/1.0').must_be_nil
   end
 
   it "uses given :headers when chunking" do
@@ -147,7 +148,7 @@ describe "chunked plugin" do
     end
 
     header('Foo', 'HTTP_VERSION'=>'HTTP/1.1').must_equal 'bar'
-    header('Foo', 'HTTP_VERSION'=>'HTTP/1.0').must_equal nil
+    header('Foo', 'HTTP_VERSION'=>'HTTP/1.0').must_be_nil
   end
 
   it "handles multiple arguments to chunked" do

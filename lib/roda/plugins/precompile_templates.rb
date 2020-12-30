@@ -25,16 +25,10 @@ class Roda
     # If the templates use local variables, you need to specify which local
     # variables to precompile, which should be an array of symbols:
     #
-    #   precompile_templates 'views/users/_*.erb', :locals=>[:user]
+    #   precompile_templates 'views/users/_*.erb', locals: [:user]
     #
-    # Note that if you have multiple local variables and are not using a Tilt
-    # version greater than 2.0.1, you should specify the :locals option in the
-    # same order as the keys in the :locals hash you pass to render/view.  Since
-    # hashes are not ordered in ruby 1.8, you should not attempt to precompile
-    # templates that use :locals on ruby 1.8 unless you are using a Tilt version
-    # greater than 2.0.1.  If you are running the Tilt master branch, you can
-    # force sorting of locals using the +:sort_locals+ option when loading the
-    # plugin.
+    # Note that you should use Tilt 2.0.1+ if you are using this plugin, so
+    # that locals are handled in the same order.
     #
     # You can specify other render options when calling +precompile_templates+,
     # including +:cache_key+, +:template_class+, and +:template_opts+.  If you
@@ -44,15 +38,11 @@ class Roda
     # To compile inline templates, just pass a single hash containing an :inline
     # to +precompile_templates+:
     #
-    #   precompile_templates :inline=>some_template_string
+    #   precompile_templates inline: some_template_string
     module PrecompileTemplates
-      OPTS = {}.freeze
-
       # Load the render plugin as precompile_templates depends on it.
-      # Default to sorting the locals if the Tilt version is greater than 2.0.1.
       def self.load_dependencies(app, opts=OPTS)
         app.plugin :render
-        app.opts[:precompile_templates_sort] = opts.fetch(:sort_locals, Tilt::VERSION > '2.0.1')
       end
 
       module ClassMethods
@@ -63,21 +53,22 @@ class Roda
             opts = pattern.merge(opts)
           end
 
-          locals = opts[:locals] || []
-          if locals && self.opts[:precompile_templates_sort]
-            locals = locals.sort{|x,y| x.to_s <=> y.to_s}
+          if locals = opts[:locals]
+            locals.sort!
+          else
+            locals = EMPTY_ARRAY
           end
 
           compile_opts = if pattern.is_a?(Hash)
             [opts]
           else
-            Dir[pattern].map{|file| opts.merge(:path=>File.expand_path(file))}
+            Dir[pattern].map{|file| opts.merge(:path=>File.expand_path(file, nil))}
           end
 
           instance = allocate
           compile_opts.each do |compile_opt|
             template = instance.send(:retrieve_template, compile_opt)
-            template.send(:compiled_method, locals)
+            Render.tilt_template_compiled_method(template, locals, self)
           end
 
           nil

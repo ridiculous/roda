@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "module_include plugin" do 
   it "must_include given module in request or response class" do
@@ -45,4 +45,15 @@ describe "module_include plugin" do
     req.must_equal [1, {}, []]
   end
 
+  it "should not allow both blocks and modules to be passed in single call" do
+    app(:bare){}
+    @app.plugin :module_include
+    proc{@app.request_module(Module.new){}}.must_raise Roda::RodaError
+  end
+
+  it "allows calling without block or module" do
+    app(:bare){}
+    @app.plugin :module_include
+    @app.request_module
+  end
 end

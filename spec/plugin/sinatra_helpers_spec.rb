@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 require 'uri'
 
@@ -8,7 +8,6 @@ describe "sinatra_helpers plugin" do
   end
 
   def status_app(code, &block)
-    #code += 2 if [204, 205, 304].include? code
     block ||= proc{}
     sin_app do |r|
       status code
@@ -76,6 +75,19 @@ describe "sinatra_helpers plugin" do
     body.must_equal 'false'
   end
 
+  it 'status predicate methods return nil if status is not set' do
+    sin_app{informational?.inspect}
+    body.must_equal 'nil'
+    sin_app{success?.inspect}
+    body.must_equal 'nil'
+    sin_app{redirect?.inspect}
+    body.must_equal 'nil'
+    sin_app{client_error?.inspect}
+    body.must_equal 'nil'
+    sin_app{server_error?.inspect}
+    body.must_equal 'nil'
+  end
+
   describe 'body' do
     it 'takes a block for deferred body generation' do
       sin_app{body{'Hello World'}; nil}
@@ -100,6 +112,15 @@ describe "sinatra_helpers plugin" do
       o = Object.new
       def o.each; yield 'Hello World' end
       sin_app{body o; nil}
+      body.must_equal 'Hello World'
+      header('Content-Length').must_equal '11'
+    end
+
+    it 'returns previously set body' do
+      sin_app do
+        response.body 'Hello World'
+        response.body.join.must_equal 'Hello World'
+      end
       body.must_equal 'Hello World'
       header('Content-Length').must_equal '11'
     end
@@ -229,7 +250,7 @@ describe "sinatra_helpers plugin" do
 
   describe 'mime_type' do
     before do
-      sin_app{|r| mime_type(r.path).to_s}
+      sin_app{|r| mime_type((r.path unless r.path.empty?)).to_s}
     end
 
     it "looks up mime types in Rack's MIME registry" do
@@ -239,7 +260,7 @@ describe "sinatra_helpers plugin" do
     end
 
     it 'returns nil when given nil' do
-      body('PATH_INFO'=>nil).must_equal ''
+      body('PATH_INFO'=>'').must_equal ''
     end
 
     it 'returns nil when media type not registered' do
@@ -378,7 +399,7 @@ describe "sinatra_helpers plugin" do
     end
 
     it "does not set the Content-Disposition header by default" do
-      header('Content-Disposition').must_equal nil
+      header('Content-Disposition').must_be_nil
     end
 
     it "sets the Content-Disposition header when :disposition set to 'attachment'" do
@@ -507,7 +528,7 @@ describe "sinatra_helpers plugin" do
   end
 
   it 'logger logs to rack.logger' do
-    sin_app{logger.info "foo"}
+    sin_app{logger.info "foo"; nil}
     o = Object.new
     def o.method_missing(*a)
       (@a ||= []) << a

@@ -17,20 +17,55 @@ class Roda
     #     Some content here.
     #   <% end %>
     #
+    # or:
+    #
+    #   <% content_for :foo do "Some content here." end %>
+    #
     # You can also set the raw content as the second argument,
     # instead of passing a block:
     #
     #   <% content_for :foo, "Some content" %>
     #
     # In the template in which you want to retrieve content,
-    # call content_for without the block:
+    # call content_for without the block or argument:
     #
     #   <%= content_for :foo %>
+    #
+    # Note that when storing content by calling content_for
+    # with a block and embedding template code, the return
+    # value of the block is used as the content (after being
+    # converted to a string).  This can cause issues in some
+    # cases, such as:
+    #
+    #   <% content_for :foo do %>
+    #     <% [1,2,3].each do |i| %>
+    #       Content <%= i %>
+    #     <% end %>
+    #   <% end %>
+    #
+    # In the above example, the return value of the block is
+    # <tt>[1,2,3]</tt>, as Array#each returns the receiver.
+    # If whitespace is not important, you can work around this by
+    # adding an empty line before the end of the content_for block.
+    #
+    # If content_for is used multiple times with the same key,
+    # by default, the last call will append previous calls.
+    # If you want to overwrite the previous content, pass the
+    # <tt>append: false</tt> option when loading the plugin:
+    #
+    #   plugin :content_for, append: false
     module ContentFor
       # Depend on the render plugin, since this plugin only makes
       # sense when the render plugin is used.
-      def self.load_dependencies(app)
+      def self.load_dependencies(app, _opts = OPTS)
         app.plugin :render
+      end
+
+      # Configure whether to append or overwrite if content_for
+      # is called multiple times to set data. Overwrite is default, use
+      # the :append option to append.
+      def self.configure(app, opts = OPTS)
+        app.opts[:append_content_for] = opts.fetch(:append, true)
       end
 
       module InstanceMethods
@@ -38,22 +73,33 @@ class Roda
         # under the given key.  If called without a block, retrieve
         # stored content with the given key, or return nil if there
         # is no content stored with that key.
-        def content_for(key, value=nil, &block)
-          if block
-            outvar = render_opts[:template_opts][:outvar]
-            buf_was = instance_variable_get(outvar)
-            # clean the output buffer for ERB-based rendering systems
-            instance_variable_set(outvar, String.new)
+        def content_for(key, value=nil)
+          append = opts[:append_content_for]
+
+          if block_given? || value
+            if block_given?
+              outvar = render_opts[:template_opts][:outvar]
+              buf_was = instance_variable_get(outvar)
+
+              # Use temporary output buffer for ERB-based rendering systems
+              instance_variable_set(outvar, String.new)
+              value = yield.to_s
+              instance_variable_set(outvar, buf_was)
+            end
 
             @_content_for ||= {}
-            @_content_for[key] = Tilt[render_opts[:engine]].new(&block).render
 
-            instance_variable_set(outvar, buf_was)
-          elsif value
-            @_content_for ||= {}
-            @_content_for[key] = value
-          elsif @_content_for
-            @_content_for[key]
+            if append
+              (@_content_for[key] ||= []) << value
+            else
+              @_content_for[key] = value
+            end
+          elsif @_content_for && (value = @_content_for[key])
+            if append
+              value = value.join
+            end
+
+            value
           end
         end
       end

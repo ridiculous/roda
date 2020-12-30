@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "run_handler plugin" do 
   it "makes r.run :not_found=>:pass keep going on 404" do

@@ -52,9 +52,14 @@ class Roda
     #   plugin :symbol_views
     #   plugin :json
     #   route do |r|
-    #     r.halt(:template)
-    #     r.halt(500, [{'error'=>'foo'}])
-    #     r.halt(500, 'header=>'value', :other_template)
+    #     # symbol_views plugin, specifying template file to render as body
+    #     r.halt(:template) if r.params['a']
+    #
+    #     # symbol_views plugin, specifying status code, headers, and template file to render as body
+    #     r.halt(500, 'header=>'value', :other_template) if r.params['c']
+    #
+    #     # json plugin, specifying status code and JSON body
+    #     r.halt(500, [{'error'=>'foo'}]) if r.params['b']
     #   end
     #
     # Note that when using the +json+ plugin with the +halt+ plugin, you cannot return a

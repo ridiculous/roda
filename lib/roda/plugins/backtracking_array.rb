@@ -26,9 +26,6 @@ class Roda
     # and the match block yields.
     module BacktrackingArray
       module RequestMethods
-        PATH_INFO = "PATH_INFO".freeze
-        SCRIPT_NAME = "SCRIPT_NAME".freeze
-
         private
 
         # When matching for a single array, after a successful
@@ -36,9 +33,7 @@ class Roda
         # elements.  If the remaining elements could not be
         # matched, reset the state and continue to the next
         # entry in the array.
-        def _match_array(arg, rest=nil)
-          return super unless rest
-
+        def _match_array(arg, rest)
           path = @remaining_path
           captures = @captures
           caps = captures.dup

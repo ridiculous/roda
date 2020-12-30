@@ -24,8 +24,6 @@ class Roda
     # correctly in such cases, but the captures will not be yielded to the
     # match blocks.
     module OptimizedStringMatchers
-      EMPTY_STRING = ''.freeze
-
       module RequestMethods
         # Optimized version of +on+ that only supports a single string.
         def on_branch(s)
@@ -36,7 +34,7 @@ class Roda
         def is_exactly(s)
           rp = @remaining_path
           if _match_string(s)
-            if @remaining_path == EMPTY_STRING
+            if @remaining_path.empty?
               always{yield}
             else
               @remaining_path = rp

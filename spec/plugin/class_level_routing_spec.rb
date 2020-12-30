@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "class_level_routing plugin" do 
   before do
@@ -18,7 +18,7 @@ describe "class_level_routing plugin" do
         "foo"
       end
 
-      is "d:d" do |x|
+      is "d", :d do |x|
         request.get do
           "bazget#{x}"
         end
@@ -42,8 +42,8 @@ describe "class_level_routing plugin" do
     body.must_equal 'root'
     body('/foo').must_equal 'foo'
     body('/foo/bar').must_equal 'foobar'
-    body('/dgo').must_equal 'bazgetgo'
-    body('/dgo', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
+    body('/d/go').must_equal 'bazgetgo'
+    body('/d/go', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
     body('/bar').must_equal "x-get-bar"
     body('/bar', 'REQUEST_METHOD'=>'POST').must_equal "x-post-bar"
     body('/bar', 'REQUEST_METHOD'=>'DELETE').must_equal "x-delete-bar"
@@ -64,8 +64,8 @@ describe "class_level_routing plugin" do
     body.must_equal 'root'
     body('/foo').must_equal 'foo'
     body('/foo/bar').must_equal 'foobar'
-    body('/dgo').must_equal 'bazgetgo'
-    body('/dgo', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
+    body('/d/go').must_equal 'bazgetgo'
+    body('/d/go', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
     body('/bar').must_equal "x-get-bar"
     body('/bar', 'REQUEST_METHOD'=>'POST').must_equal "x-post-bar"
     body('/bar', 'REQUEST_METHOD'=>'DELETE').must_equal "x-delete-bar"
@@ -100,8 +100,8 @@ describe "class_level_routing plugin" do
     body.must_equal 'iroot'
     body('/foo').must_equal 'ifoo'
     body('/foo/bar').must_equal 'foobar'
-    body('/dgo').must_equal 'bazgetgo'
-    body('/dgo', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
+    body('/d/go').must_equal 'bazgetgo'
+    body('/d/go', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
     body('/bar').must_equal ""
     body('/bar', 'REQUEST_METHOD'=>'POST').must_equal "ibar"
     body('/bar', 'REQUEST_METHOD'=>'DELETE').must_equal "x-delete-bar"
@@ -120,8 +120,8 @@ describe "class_level_routing plugin" do
     body.must_equal 'root'
     body('/foo').must_equal 'foo'
     body('/foo/bar').must_equal 'foobar'
-    body('/dgo').must_equal 'bazgetgo'
-    body('/dgo', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
+    body('/d/go').must_equal 'bazgetgo'
+    body('/d/go', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
     body('/bar').must_equal "x-get-bar"
     body('/bar', 'REQUEST_METHOD'=>'POST').must_equal "x-post-bar"
     body('/bar', 'REQUEST_METHOD'=>'DELETE').must_equal "x-delete-bar"
@@ -141,8 +141,8 @@ describe "class_level_routing plugin" do
     body.must_equal 'root'
     body('/foo').must_equal 'foo'
     body('/foo/bar').must_equal 'foobar'
-    body('/dgo').must_equal 'bazgetgo'
-    body('/dgo', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
+    body('/d/go').must_equal 'bazgetgo'
+    body('/d/go', 'REQUEST_METHOD'=>'POST').must_equal 'bazpostgo'
     body('/bar').must_equal "x-get-bar"
     body('/bar', 'REQUEST_METHOD'=>'POST').must_equal "x-post-bar"
     body('/bar', 'REQUEST_METHOD'=>'DELETE').must_equal "x-delete-bar"

@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "default_status plugin" do
   it "sets the default response status to use for the response" do
@@ -14,7 +14,7 @@ describe "default_status plugin" do
     status.must_equal 201
   end
 
-  it "should instance_exec the plugin block" do
+  it "should exec the plugin block in the context of the instance" do
     app(:bare) do
       plugin :default_status do
         200 + @body[0].length
@@ -61,5 +61,35 @@ describe "default_status plugin" do
 
   it "should raise if not given a block" do
     proc{app(:default_status)}.must_raise Roda::RodaError
+  end
+
+  [true, false].each do |warn_arity|
+    send(warn_arity ? :deprecated : :it, "works with blocks with invalid arity") do
+      app(:bare) do
+        opts[:check_arity]  = :warn if warn_arity
+        plugin :default_status do |r|
+          201
+        end
+        route do |r|
+          r.halt response.finish_with_body([])
+        end
+      end
+
+      status.must_equal 201
+    end
+  end
+
+  it "does not work with blocks with invalid arity if :check_arity app option is false" do
+    app(:bare) do
+      opts[:check_arity] = false
+      plugin :default_status do |r|
+        201
+      end
+      route do |r|
+        r.halt response.finish_with_body([])
+      end
+    end
+
+    proc{status}.must_raise ArgumentError
   end
 end

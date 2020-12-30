@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 begin
   require 'tilt/erb'
@@ -55,10 +55,10 @@ describe "named_templates plugin" do
     proc{app.template(:b){"a"}}.must_raise
   end
 
-  it "works with the view_subdirs plugin" do
+  it "works with the view_options plugin" do
     app(:bare) do
       plugin :render
-      plugin :view_subdirs
+      plugin :view_options
       plugin :named_templates
 
       template "foo/bar" do

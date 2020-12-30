@@ -44,7 +44,7 @@ class Roda
     # block will be delayed until rendering the content template.  This is
     # useful if you want to delay execution for all routes under a branch:
     #
-    #   r.on 'albums/:d' do |album_id|
+    #   r.on 'albums', Integer do |album_id|
     #     delay do
     #       @album = Album[album_id]
     #     end
@@ -60,7 +60,7 @@ class Roda
     # If you want to chunk all responses, pass the :chunk_by_default option
     # when loading the plugin:
     #
-    #   plugin :chunked, :chunk_by_default => true
+    #   plugin :chunked, chunk_by_default: true
     #
     # then you can just use the normal view method:
     #
@@ -104,10 +104,10 @@ class Roda
     #   <% flush %><%= render(:subtemplate) %>
     #
     # If you want to use chunked encoding when rendering a template, but don't
-    # want to use a layout, pass the :layout=>false option to chunked.
+    # want to use a layout, pass the <tt>layout: false</tt> option to chunked.
     #
     #   r.root do
-    #     chunked(:index, :layout=>false)
+    #     chunked(:index, layout: false)
     #   end
     #
     # In order to handle errors in chunked responses, you can override the
@@ -133,7 +133,7 @@ class Roda
     # X-Accel-Buffering header.  To set this header or similar headers for
     # all chunked responses, pass a :headers option when loading the plugin:
     #
-    #   plugin :chunked, :headers=>{'X-Accel-Buffering'=>'no'}
+    #   plugin :chunked, headers: {'X-Accel-Buffering'=>'no'}
     #
     # The chunked plugin requires the render plugin, and only works for
     # template engines that store their template output variable in
@@ -145,12 +145,6 @@ class Roda
     # method is not called until template rendering, the flash may not be
     # rotated.
     module Chunked
-      HTTP_VERSION = 'HTTP_VERSION'.freeze
-      HTTP11 = "HTTP/1.1".freeze
-      TRANSFER_ENCODING = 'Transfer-Encoding'.freeze
-      CHUNKED = 'chunked'.freeze
-      OPTS = {}.freeze
-
       # Depend on the render plugin
       def self.load_dependencies(app, opts=OPTS)
         app.plugin :render
@@ -168,10 +162,6 @@ class Roda
 
       # Rack response body instance for chunked responses
       class Body
-        CHUNK_SIZE = "%x\r\n".freeze
-        CRLF = "\r\n".freeze
-        FINISH = "0\r\n\r\n".freeze
-
         # Save the scope of the current request handling.
         def initialize(scope)
           @scope = scope
@@ -185,12 +175,12 @@ class Roda
         def each
           @scope.each_chunk do |chunk|
             next if !chunk || chunk.empty?
-            yield(CHUNK_SIZE % chunk.bytesize)
+            yield("%x\r\n" % chunk.bytesize)
             yield(chunk)
-            yield(CRLF)
+            yield("\r\n")
           end
         ensure
-          yield(FINISH)
+          yield("0\r\n\r\n")
         end
       end
 
@@ -215,7 +205,7 @@ class Roda
         # an overview.  If a block is given, it is passed to #delay.
         def chunked(template, opts=OPTS, &block)
           unless defined?(@_chunked)
-            @_chunked = env[HTTP_VERSION] == HTTP11
+            @_chunked = env['HTTP_VERSION'] == "HTTP/1.1"
           end
 
           if block
@@ -245,7 +235,7 @@ class Roda
           if chunk_headers = self.opts[:chunk_headers]
             headers.merge!(chunk_headers)
           end
-          headers[TRANSFER_ENCODING] = CHUNKED
+          headers['Transfer-Encoding'] = 'chunked'
 
           throw :halt, res.finish_with_body(Body.new(self))
         end

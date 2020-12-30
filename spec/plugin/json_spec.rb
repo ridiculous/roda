@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "json plugin" do
   before do
@@ -67,6 +67,13 @@ describe "json plugin" do
       :serializer => lambda{|o,r| "#{o['a']}:#{r.path_info}"}
 
     body("/hash").must_equal 'b:/hash'
+  end
+
+  it "should allow resetting :include_request to false" do
+    app.plugin :json, :include_request => true
+    app.plugin :json, :include_request => false
+
+    body("/hash").must_equal '{"a":"b"}'
   end
 
   it "should allow custom content type for a response" do

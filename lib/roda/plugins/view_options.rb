@@ -1,26 +1,27 @@
 # frozen-string-literal: true
 
+require_relative 'render'
+
 #
 class Roda
   module RodaPlugins
     # The view_options plugin allows you to override view and layout
-    # options and locals for specific branches and routes.
+    # options for specific branches and routes.
     #
     #   plugin :render
     #   plugin :view_options
     #
     #   route do |r|
     #     r.on "users" do
-    #       set_layout_options :template=>'users_layout'
-    #       set_layout_locals :title=>'Users'
-    #       set_view_options :engine=>'haml'
-    #       set_view_locals :footer=>'(c) Roda'
+    #       set_layout_options template: 'users_layout'
+    #       set_view_options engine: 'haml'
     #
     #       # ...
     #     end
     #   end
     #
-    # The options and locals you specify have higher precedence than
+    # The options you specify via the set_view_options and
+    # set_layout_options methods have higher precedence than
     # the render plugin options, but lower precedence than options
     # you directly pass to the view/render methods.
     #
@@ -32,14 +33,14 @@ class Roda
     # use, and template names that do not contain a slash will
     # automatically use that view subdirectory.  Example:
     #
-    #   plugin :render, :layout=>'./layout'
+    #   plugin :render, layout: './layout'
     #   plugin :view_options
     #
     #   route do |r|
     #     r.on "users" do
     #       set_view_subdir 'users'
     #       
-    #       r.get :id do
+    #       r.get Integer do |id|
     #         append_view_subdir 'profile'
     #         view 'index' # uses ./views/users/profile/index.erb
     #       end
@@ -60,22 +61,22 @@ class Roda
     #
     # If you have an existing Roda application that doesn't use
     # automatic HTML escaping for <tt><%= %></tt> tags via the
-    # :render plugin's :escape option, but you want to switch to
-    # using the :escape option, you can now do so without making
+    # render plugin's +:escape+ option, but you want to switch to
+    # using the +:escape+ option, you can now do so without making
     # all changes at once.  With set_view_options, you can now
     # specify escaping or not on a per branch basis in the routing
     # tree:
     #
-    #   plugin :render, :escape=>true
+    #   plugin :render, escape: true
     #   plugin :view_options
     #
     #   route do |r|
     #     # Don't escape <%= %> by default
-    #     set_view_options :template_opts=>{:engine_class=>nil}
+    #     set_view_options template_opts: {escape: false}
     #
     #     r.on "users" do
     #       # Escape <%= %> in this branch
-    #       set_view_options :template_opts=>{:engine_class=>render_opts[:template_opts][:engine_class]}
+    #       set_view_options template_opts: {escape: true}
     #     end
     #   end
     module ViewOptions
@@ -85,27 +86,7 @@ class Roda
         app.plugin :render
       end
 
-      # The following methods are created via metaprogramming:
-      # set_layout_locals :: Set locals to use in the layout
-      # set_layout_options :: Set options to use when rendering the layout
-      # set_view_locals :: Set locals to use in the view
-      # set_view_options :: Set options to use when rendering the view
       module InstanceMethods
-        %w'layout view'.each do |type|
-          %w'locals options'.each do |var|
-            v = "_#{type}_#{var}"
-            module_eval(<<-END, __FILE__, __LINE__+1)
-              def set#{v}(opts)
-                if @#{v}
-                  @#{v} = Hash[@#{v}].merge!(opts)
-                else
-                  @#{v} = opts
-                end
-              end
-            END
-          end
-        end
-
         # Append a view subdirectory to use.  If there hasn't already
         # been a view subdirectory set, this just sets it to the argument.
         # If there has already been a view subdirectory set, this sets
@@ -125,7 +106,53 @@ class Roda
           @_view_subdir = v
         end
 
+        # Set branch/route options to use when rendering the layout
+        def set_layout_options(opts)
+          if options = @_layout_options
+            @_layout_options = options.merge!(opts)
+          else
+            @_layout_options = opts
+          end
+        end
+
+        # Set branch/route options to use when rendering the view
+        def set_view_options(opts)
+          if options = @_view_options
+            @_view_options = options.merge!(opts)
+          else
+            @_view_options = opts
+          end
+        end
+
         private
+
+        # :nocov:
+        if Render::COMPILED_METHOD_SUPPORT
+        # :nocov:
+          # Return nil if using custom view or layout options.
+          # If using a view subdir, prefix the template key with the subdir.
+          def _cached_template_method_key(template)
+            return if @_view_options || @_layout_options
+
+            if subdir = @_view_subdir
+              template = [subdir, template]
+            end
+
+            super
+          end
+
+          # Return nil if using custom view or layout options.
+          # If using a view subdir, prefix the template key with the subdir.
+          def _cached_template_method_lookup(method_cache, template)
+            return if @_view_options || @_layout_options
+
+            if subdir = @_view_subdir
+              template = [subdir, template]
+            end
+
+            super
+          end
+        end
 
         # If view options or locals have been set and this
         # template isn't a layout template, merge the options
@@ -133,18 +160,8 @@ class Roda
         def parse_template_opts(template, opts)
           t_opts = super
 
-          unless t_opts[:_is_layout]
-            if v_opts = @_view_options
-              t_opts.merge!(v_opts)
-            end
-
-            if v_locals = @_view_locals
-              t_opts[:locals] = if t_locals = t_opts[:locals]
-                Hash[v_locals].merge!(t_locals)
-              else
-                v_locals
-              end
-            end
+          if !t_opts[:_is_layout] && (v_opts = @_view_options)
+            t_opts.merge!(v_opts)
           end
 
           t_opts
@@ -157,14 +174,6 @@ class Roda
 
           if l_opts = @_layout_options
             opts.merge!(l_opts)
-          end
-
-          if l_locals = @_layout_locals
-            opts[:locals] = if o_locals = opts[:locals]
-              Hash[o_locals].merge!(l_locals)
-            else
-              l_locals
-            end
           end
 
           opts

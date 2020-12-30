@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "response #[] and #[]=" do
   it "should get/set headers" do
@@ -58,11 +58,33 @@ describe "response #finish" do
   it "should set Content-Length header" do
     app do |r|
       response.write 'a'
-      response['Content-Length'].must_equal nil
+      response['Content-Length'].must_be_nil
       throw :halt, response.finish
     end
 
     header('Content-Length').must_equal '1'
+  end
+
+  [204, 304, 100].each do |status|
+    it "should not set Content-Type or Content-Length header on a #{status} response" do
+      app do |r|
+        response.status = status
+        throw :halt, response.finish
+      end
+
+      header('Content-Type').must_be_nil
+      header('Content-Length').must_be_nil
+    end
+  end
+
+  it "should not set Content-Type header on a 205 response, but should set a Content-Length header" do
+    app do |r|
+      response.status = 205
+      throw :halt, response.finish
+    end
+
+    header('Content-Type').must_be_nil
+    header('Content-Length').must_equal '0'
   end
 
   it "should not overwrite existing status" do
@@ -96,11 +118,11 @@ describe "response #finish_with_body" do
   it "should not set Content-Length header" do
     app do |r|
       response.write 'a'
-      response['Content-Length'].must_equal nil
+      response['Content-Length'].must_be_nil
       throw :halt, response.finish_with_body(['123'])
     end
 
-    header('Content-Length').must_equal nil
+    header('Content-Length').must_be_nil
   end
 
   it "should not overwrite existing status" do

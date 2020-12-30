@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "hooks plugin" do 
   before do
@@ -44,6 +44,15 @@ describe "hooks plugin" do
     @a.must_equal [[200, 'baz', ['bar']]]
   end
 
+  it "works when freezing the app" do
+    app.freeze
+    s, h, b = req
+    s.must_equal 201
+    h['foo'].must_equal 'baz'
+    b.join.must_equal 'bar'
+    @a.must_equal [[200, 'baz', ['bar']]]
+  end
+
   it "after hooks are still called if an exception is raised" do
     a = @a
     @app.before do
@@ -57,7 +66,7 @@ describe "hooks plugin" do
 
     proc{req}.must_raise(Roda::RodaError)
     a.pop.must_be_kind_of(Roda::RodaError)
-    a.pop.must_equal nil
+    a.pop.must_be_nil
   end
 
   it "handles multiple before and after blocks correctly" do
@@ -99,5 +108,45 @@ describe "hooks plugin" do
       request.halt
     end
     status.must_equal 201
+  end
+
+  it "works with error plugin when loaded first" do
+    app.plugin(:error_handler){|e| "error"}
+    app.before do
+      raise "before" if @_request.path == '/b'
+    end
+    app.after do
+      raise "after" if @_request.path == '/a'
+    end
+    body('/a').must_equal "error"
+    body('/b').must_equal "error"
+  end
+
+  it "works with error plugin when loaded after" do
+    app(:bare) do
+      plugin(:error_handler){|e| "error"}
+      plugin :hooks
+      before do
+        raise "before" if @_request.path == '/b'
+      end
+      after do
+        raise "after" if @_request.path == '/a'
+      end
+      route{}
+    end
+    body('/a').must_equal "error"
+    body('/b').must_equal "error"
+  end
+
+  deprecated "should work if #call is overridden" do
+    app.class_eval do
+      def call; super end
+    end
+    app.route(&app.route_block)
+    s, h, b = req
+    s.must_equal 201
+    h['foo'].must_equal 'baz'
+    b.join.must_equal 'bar'
+    @a.must_equal [[200, 'baz', ['bar']]]
   end
 end

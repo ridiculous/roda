@@ -18,10 +18,10 @@ class Roda
     #
     # In some cases, you may want to override PATH_INFO for the rewritten
     # paths, such as when you are passing the request to another Rack app.
-    # For those cases, you can use the <tt>:path_info => true</tt> option to
+    # For those cases, you can use the <tt>path_info: true</tt> option to
     # +rewrite_path+.
     #
-    #   rewrite_path '/a', '/b', :path_info => true
+    #   rewrite_path '/a', '/b', path_info: true
     #   # PATH_INFO '/a' => PATH_INFO '/b'
     #   # PATH_INFO '/a/c' => PATH_INFO '/b/c'
     #
@@ -36,18 +36,15 @@ class Roda
     # Patterns can be rewritten dynamically by providing a block accepting a MatchData
     # object and evaluating to the replacement.
     #
-    #   rewrite_path(/\A\/a/(\w+)/){|match| match[1].capitalize}
+    #   rewrite_path(/\A\/a\/(\w+)/){|match| "/a/#{match[1].capitalize}"}
     #   # PATH_INFO '/a/moo' => remaining_path '/a/Moo'
-    #   rewrite_path(/\A\/a/(\w+)/, :path_info => true){|match| match[1].capitalize}
+    #   rewrite_path(/\A\/a\/(\w+)/, path_info: true){|match| "/a/#{match[1].capitalize}"}
     #   # PATH_INFO '/a/moo' => PATH_INFO '/a/Moo'
     #
     # All path rewrites are applied in order, so if a path is rewritten by one rewrite,
     # it can be rewritten again by a later rewrite.  Note that PATH_INFO rewrites are
     # processed before remaining_path rewrites.
     module PathRewriter
-      PATH_INFO = 'PATH_INFO'.freeze
-      OPTS={}.freeze
-
       def self.configure(app)
         app.instance_exec do
           app.opts[:remaining_path_rewrites] ||= []
@@ -86,7 +83,7 @@ class Roda
       module RequestMethods
         # Rewrite remaining_path and/or PATH_INFO based on the path rewrites.
         def initialize(scope, env)
-          path_info = env[PATH_INFO]
+          path_info = env['PATH_INFO']
 
           rewrite_path(scope.class.opts[:path_info_rewrites], path_info)
           super

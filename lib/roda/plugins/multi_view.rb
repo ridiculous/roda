@@ -16,6 +16,10 @@ class Roda
     # +multi_view_compile+ class method that will take an array of view template
     # names and construct a regexp that can be passed to +r.multi_view+.
     #
+    # The hash_routes plugin offers a views method that is similar to and performs
+    # better than the +r.multi_view+ method, and it is recommended to consider
+    # using that instead of this plugin.
+    #
     # Example:
     #
     #   plugin :multi_view

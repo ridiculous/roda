@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "status_handler plugin" do
   it "executes on no arguments" do
@@ -20,6 +20,23 @@ describe "status_handler plugin" do
     status.must_equal 404
     body("/a").must_equal 'found'
     status("/a").must_equal 200
+  end
+
+  it "passes request if block accepts argument" do
+    app(:bare) do
+      plugin :status_handler
+
+      status_handler(404) do |r|
+        r.path + 'foo'
+      end
+
+      route do |r|
+      end
+    end
+
+    body('/').must_equal '/foo'
+    body("/a").must_equal '/afoo'
+    status("/").must_equal 404
   end
 
   it "allows overriding status inside status_handler" do
@@ -68,7 +85,7 @@ describe "status_handler plugin" do
     end
 
     header('Content-Type').must_equal 'text/html'
-    header('Foo').must_equal nil
+    header('Foo').must_be_nil
   end
 
   it "does not modify behavior if status_handler is not called" do

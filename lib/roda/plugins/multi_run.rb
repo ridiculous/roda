@@ -55,6 +55,7 @@ class Roda
         # Freeze the multi_run apps so that there can be no thread safety issues at runtime.
         def freeze
           opts[:multi_run_apps].freeze
+          self::RodaRequest.refresh_multi_run_regexp!
           super
         end
 

@@ -7,14 +7,15 @@ class Roda
   module RodaPlugins
     # The mailer plugin allows your Roda application to send emails easily.
     #
-    #   class App < Roda
+    #   class Mailer < Roda
     #     plugin :render
     #     plugin :mailer
     #
     #     route do |r|
-    #       r.on "albums" do
-    #         r.mail "added" do |album|
-    #           @album = album
+    #       r.on "albums", Integer do |album_id|
+    #         @album = Album[album_id]
+    #
+    #         r.mail "added" do
     #           from 'from@example.com'
     #           to 'to@example.com'
     #           cc 'cc@example.com'
@@ -29,12 +30,12 @@ class Roda
     #
     # The default method for sending a mail is +sendmail+:
     #
-    #   App.sendmail("/albums/added", Album[1])
+    #   Mailer.sendmail("/albums/1/added")
     #
     # If you want to return the <tt>Mail::Message</tt> instance for further modification,
     # you can just use the +mail+ method:
     #
-    #   mail = App.mail("/albums/added", Album[1])
+    #   mail = Mailer.mail("/albums/1/added")
     #   mail.from 'from2@example.com'
     #   mail.deliver
     #
@@ -43,12 +44,12 @@ class Roda
     # more details):
     #
     #   Mail.defaults do
-    #     delivery_method :smtp, :address=>'smtp.example.com', :port=>587
+    #     delivery_method :smtp, address: 'smtp.example.com', port: 587
     #   end
     #
     # You can support multipart emails using +text_part+ and +html_part+:
     #
-    #   r.mail "added" do |album_added|
+    #   r.mail "added" do
     #     from 'from@example.com'
     #     to 'to@example.com'
     #     subject 'Album Added'
@@ -60,8 +61,8 @@ class Roda
     # email bodies, you can use all of Roda's usual routing tree features
     # to DRY up your code:
     #
-    #   r.on "albums/:d" do |album_id|
-    #     @album = Album[album_id.to_i]
+    #   r.on "albums", Integer do |album_id|
+    #     @album = Album[album_id]
     #     from 'from@example.com'
     #     to 'to@example.com'
     #
@@ -92,8 +93,19 @@ class Roda
     # If while preparing the email you figure out you don't want to send an
     # email, call +no_mail!+:
     #
-    #  r.mail '/welcome/:d' do |id| 
+    #  r.mail 'welcome', Integer do |id| 
     #    no_mail! unless user = User[id]
+    #    # ...
+    #  end
+    #
+    # You can pass arguments when calling +mail+ or +sendmail+, and they
+    # will be yielded as additional arguments to the appropriate +r.mail+ block:
+    # 
+    #  Mailer.sendmail('/welcome/1', 'foo@example.com')
+    #
+    #  r.mail 'welcome' do |user_id, mail_from| 
+    #    from mail_from
+    #    to User[user_id].email
     #    # ...
     #  end
     #
@@ -101,7 +113,7 @@ class Roda
     # You can override the default by specifying a :content_type option when
     # loading the plugin:
     #
-    #   plugin :mailer, :content_type=>'text/html'
+    #   plugin :mailer, content_type: 'text/html'
     #
     # The mailer plugin does support being used inside a Roda application
     # that is handling web requests, where the routing block for mails and
@@ -110,18 +122,6 @@ class Roda
     # Roda application if you want your helper methods to automatically be
     # available in your email views.
     module Mailer
-      REQUEST_METHOD = "REQUEST_METHOD".freeze
-      PATH_INFO = "PATH_INFO".freeze
-      SCRIPT_NAME = 'SCRIPT_NAME'.freeze
-      EMPTY_STRING = ''.freeze
-      RACK_INPUT = 'rack.input'.freeze
-      RODA_MAIL = 'roda.mail'.freeze
-      RODA_MAIL_ARGS = 'roda.mail_args'.freeze
-      MAIL = "MAIL".freeze
-      CONTENT_TYPE = 'Content-Type'.freeze
-      TEXT_PLAIN = "text/plain".freeze
-      OPTS = {}.freeze
-
       # Error raised when the using the mail class method, but the routing
       # tree doesn't return the mail object. 
       class Error < ::Roda::RodaError; end
@@ -129,24 +129,25 @@ class Roda
       # Set the options for the mailer.  Options:
       # :content_type :: The default content type for emails (default: text/plain)
       def self.configure(app, opts=OPTS)
-        app.opts[:mailer] = (app.opts[:mailer]||{}).merge(opts).freeze
+        app.opts[:mailer] = (app.opts[:mailer]||OPTS).merge(opts).freeze
       end
 
       module ClassMethods
         # Return a Mail::Message instance for the email for the given request path
-        # and arguments.  You can further manipulate the returned mail object before
-        # calling +deliver+ to send the mail.
+        # and arguments.   Any arguments given are yielded to the appropriate +r.mail+
+        # block after any usual match block arguments. You can further manipulate the
+        #returned mail object before calling +deliver+ to send the mail.
         def mail(path, *args)
           mail = ::Mail.new
           catch(:no_mail) do
-            unless mail.equal?(new(PATH_INFO=>path, SCRIPT_NAME=>EMPTY_STRING, REQUEST_METHOD=>MAIL, RACK_INPUT=>StringIO.new, RODA_MAIL=>mail, RODA_MAIL_ARGS=>args).call(&route_block))
+            unless mail.equal?(new("PATH_INFO"=>path, 'SCRIPT_NAME'=>'', "REQUEST_METHOD"=>"MAIL", 'rack.input'=>StringIO.new, 'roda.mail'=>mail, 'roda.mail_args'=>args)._roda_handle_main_route)
               raise Error, "route did not return mail instance for #{path.inspect}, #{args.inspect}"
             end
             mail
           end
         end
 
-        # Calls +mail+ and immediately sends the resulting mail.
+        # Calls +mail+ with given arguments and immediately sends the resulting mail.
         def sendmail(*args)
           if m = mail(*args)
             m.deliver
@@ -161,9 +162,9 @@ class Roda
         # the request.  This yields any of the captures to the block, as well as
         # any arguments passed to the +mail+ or +sendmail+ Roda class methods.
         def mail(*args)
-          if @env[REQUEST_METHOD] == MAIL
+          if @env["REQUEST_METHOD"] == "MAIL"
             if_match(args) do |*vs|
-              yield(*(vs + @env[RODA_MAIL_ARGS]))
+              yield(*(vs + @env['roda.mail_args']))
             end
           end
         end
@@ -179,7 +180,7 @@ class Roda
         # that the routing tree did not handle the request.
         def finish
           if m = mail
-            header_content_type = @headers.delete(CONTENT_TYPE)
+            header_content_type = @headers.delete('Content-Type')
             m.headers(@headers)
             m.body(@body.join) unless @body.empty?
             mail_attachments.each do |a, block|
@@ -191,7 +192,7 @@ class Roda
               if mail.multipart?
                 if mail.content_type =~ /multipart\/mixed/ &&
                    mail.parts.length >= 2 &&
-                   (part = mail.parts.find{|p| !p.attachment && p.content_type == TEXT_PLAIN})
+                   (part = mail.parts.find{|p| !p.attachment && p.content_type == "text/plain"})
                   part.content_type = content_type
                 end
               else
@@ -217,7 +218,7 @@ class Roda
         # Add delegates for common email methods.
         [:from, :to, :cc, :bcc, :subject].each do |meth|
           define_method(meth) do |*args|
-            env[RODA_MAIL].send(meth, *args)
+            env['roda.mail'].public_send(meth, *args)
             nil
           end
         end
@@ -231,16 +232,16 @@ class Roda
         # as the default content_type for the email.
         def initialize(env)
           super
-          if mail = env[RODA_MAIL]
+          if mail = env['roda.mail']
             res = @_response
             res.mail = mail
-            res.headers.delete(CONTENT_TYPE)
+            res.headers.delete('Content-Type')
           end
         end
 
         # Delay adding a file to the message until after the message body has been set.
         # If a block is given, the block is called after the file has been added, and you
-        # can access the attachment via <tt>response.mail.attachments.last</tt>.
+        # can access the attachment via <tt>response.mail_attachments.last</tt>.
         def add_file(*a, &block)
           response.mail_attachments << [a, block]
           nil
@@ -256,7 +257,7 @@ class Roda
         # Set the text_part or html_part (depending on the method) in the related email,
         # using the given body and optional headers.
         def _mail_part(meth, body, headers=nil)
-          env[RODA_MAIL].send(meth) do
+          env['roda.mail'].public_send(meth) do
             body(body)
             headers(headers) if headers
           end

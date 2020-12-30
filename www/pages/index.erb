@@ -1,10 +1,30 @@
-<div class="col-md-6">
-<pre><code class="ruby"># cat config.ru
+<section id="intro" class="row bg-graydark">
+  <div class="contain row">
+    <aside class="col 40">
+      <a id="logo" href="/"><img src="images/roda-logo.svg" alt="Roda"></a>
+      <small class='gray'>The Routing Tree Web Toolkit</small>
+      <nav>
+        <a href="documentation.html">Docs</a>
+        <a href="development.html">Development</a>
+        <a href="https://github.com/jeremyevans/roda">Github</a>
+      </nav>
+
+      <h2 class='aqua'>Simplicity</h2>
+      <p>Roda is designed to be simple, both internally and externally, reducing cognitive overhead.</p>
+
+      <h2 class='aqua'>Usability</h2>
+      <p>Roda uses a routing tree. At any point during routing, it allows you to operate on the current request.</p>
+
+      <h2 class='aqua'>Productivity</h2>
+      <p>Roda makes it easy to develop applications quickly.</p>
+    </aside>
+    <div class="col 60">
+      <pre>
+        <code class="language-ruby">
+# cat config.ru
 require "roda"
 
 class App < Roda
-  use Rack::Session::Cookie, :secret => ENV['SECRET']
-
   route do |r|
     # GET / request
     r.root do
@@ -37,14 +57,116 @@ class App < Roda
     end
   end
 end
-</code></pre>
-</div>
 
-<div class="col-md-6">
-  <div id="roda_tree">
-    <h1 id="site_title">Roda</h1>
-    <h2 id="site_subtitle">Routing Tree<br />Web Toolkit</h2>
+run App.freeze.app
+        </code>
+      </pre>
+    </div>
   </div>
-</div>
+</section>
 
-<p style="clear: both;">Roda is a routing tree web toolkit, with the primary goals of simplicity, reliability, extensibility, and performance.  Find out <a href="why.html">why you should use it</a>.</p>
+<section id="features" class="bg-white">
+  <div class="contain">
+    <h1 class="red center">A Modular, Scalable Ruby Framework</h1>
+    <ul class="plain row">
+      <% (<<END).split("\n").each_slice(2) do |name, info|
+Built on Rack
+Ruby's de facto webserver interface.
+Flexible Architecture
+Any design pattern for any application.
+Rich Set of Included Plugins
+Tools for every aspect of web development.
+Simple, Reliable API
+Currently at version #{Roda::RodaVersion}
+Security Focused
+Encrypted sessions, per-form CSRF tokens.
+Streaming Views &amp; Assets
+Mailers, JSON APIs, and more...
+END
+%>
+        <li>
+          <svg class="feature" viewBox="0 0 41 41"><circle cx="20.5" cy="20.5" r="19.5"/><polyline points="10.88 22.78 15.31 27.21 28.93 13.59"/></svg>
+          <strong><%= name %></strong>
+          <p class="graylight"><%= info %></p>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+</section>
+
+<section id="videos" class="bg-cream">
+  <div class="contain">
+    <h2 class="aqua center">Learn Roda. It's Easy!</h2>   
+    <div class="video row">
+      <div class="col 40">
+        <iframe src='https://www.youtube.com/embed/W8zglFFFRMM?showinfo=0"' frameborder='0' allow='autoplay;encrypted-media' allowfullscreen></iframe>
+      </div>
+      <div class="col 60">
+        <h3><a href="https://www.youtube.com/watch?v=W8zglFFFRMM" target="_blank">RubyConf 2014 - Roda: The Routing Tree Web Framework by Jeremy Evans</a></h3>
+        <p>Watch Roda's lead developer guide you through design philosophy and basic functions. Get up and running in no time!</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ecosystem" class="bg-green white center">
+  <strong>
+    <svg class="like" viewBox="0 0 39.87 37.41"><path d="M12.38,19.53s1.37.25,2.74-3.25,4-7,4-10.52-.2-4.6,1.8-5,4.79,2.75,4.79,5.88a31.57,31.57,0,0,1-1.5,7.7H35.63c3.75,0,4.77,4.11,1.49,5.59,3.28,1.77,2.19,5.43-.87,5.79,3,1.79,1.55,5.63-.83,5.59a2.7,2.7,0,0,1-1.67,5H19.44c-2.13,0-5.32-.29-6.82-2"/><rect x="0.75" y="17.41" width="11.88" height="19.25" rx="1" ry="1"/></svg>
+    Roda compares favorably with other popular Ruby web frameworks.<br>
+    The following benchmarks are taken from <a href="https://github.com/luislavena/bench-micro">GitHub</a>
+  </strong>
+</section>
+
+<section id="performance" class="bg-aqua">
+  <div class="contain">
+    <%
+    [
+    'Serve More Requests',
+    {
+      rack: 15839,
+      roda: 11776,
+      hanami: 10247,
+      sinatra: 3977,
+      grape: 2937,
+      rails_api: 1211
+    },
+    false,
+
+    "Use Less Memory",
+    {
+      rack: 2920,
+      roda: 3608,
+      hanami: 4880,
+      sinatra: 12512,
+      grape: 20800,
+      rails_api: 28017
+    },
+    true
+    ].each_slice(3) do |name, frameworks, is_memory| %>
+      <% top = frameworks[is_memory ? :rails_api : :rack] %>
+      <h2 class='white center'><%= name %></h2>
+      <div class="benchmarks <%= is_memory ? 'memory' : 'requests' %>">
+        <% frameworks.each do |k,v| %>
+          <% percent = ((v.to_f / top.to_f) * 100).to_i %>
+          <div class="score <%= k %>">
+            <div class="name"><%= k.to_s.gsub('_',' ') %></div>
+            <div class="bar bg-aquadark">
+              <div class="fill bg-green" data-percent="<%= percent %>%"></div>
+            </div>
+            <div class="value"><%= v %> <small><%= is_memory ? "KB" : "req/sec"  %></small></div>  
+          </div>
+        <% end %>
+      </div>
+      <% end %>
+  </div>
+</section>
+
+<section id="compare" class="bg-gray white">
+  <div class="contain">
+    <div class="compare sinatra">
+      <h2>Compare to Sinatra</h2>
+      <p>Roda aims to take the ease of development and understanding that Sinatra brings, and enable it to scale to support the development of large web applications.</p>
+      <a href="compare_to_sinatra.html" class="btn continue">Continue Reading</a>
+    </div>
+  </div>
+</section>

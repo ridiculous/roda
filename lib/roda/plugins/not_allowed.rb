@@ -102,9 +102,11 @@ class Roda
 
         # Setup methods for all verbs.  If inside an is block and not given
         # arguments, record the verb used.  If given an argument, add an is
-        # check with the argu
+        # check with the arguments.
         %w'get post delete head options link patch put trace unlink'.each do |verb|
+          # :nocov:
           if ::Rack::Request.method_defined?("#{verb}?")
+          # :nocov:
             class_eval(<<-END, __FILE__, __LINE__+1)
               def #{verb}(*args, &block)
                 if (empty = args.empty?) && @_is_verbs

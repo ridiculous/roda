@@ -1,9 +1,9 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "r.run" do
   it "should allow composition of apps" do
     a = app do |r|
-      r.on "services/:id" do |id|
+      r.on "services", :id do |id|
         "View #{id}"
       end
     end
@@ -19,13 +19,13 @@ describe "r.run" do
 
   it "modifies SCRIPT_NAME/PATH_INFO when calling run" do
     a = app{|r| "#{r.script_name}|#{r.path_info}"}
-    app(:static_path_info){|r| r.on("a"){r.run a}}
+    app{|r| r.on("a"){r.run a}}
     body("/a/b").must_equal "/a|/b"
   end
 
   it "restores SCRIPT_NAME/PATH_INFO before returning from run" do
     a = app{|r| "#{r.script_name}|#{r.path_info}"}
-    app(:static_path_info){|r| s = catch(:halt){r.on("a"){r.run a}}; "#{s[2].join}%#{r.script_name}|#{r.path_info}"}
+    app{|r| s = catch(:halt){r.on("a"){r.run a}}; "#{s[2].join}%#{r.script_name}|#{r.path_info}"}
     body("/a/b").must_equal "/a|/b%|/a/b"
   end
 end

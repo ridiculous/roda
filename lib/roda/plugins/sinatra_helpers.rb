@@ -15,9 +15,9 @@ class Roda
     # of the route block that call the methods on the request
     # or response.  If you do not want to pollute the namespace
     # of the route block, you should load the plugin with the
-    # :delegate => false option:
+    # <tt>delegate: false</tt> option:
     #
-    #   plugin :sinatra_helpers, :delegate=>false
+    #   plugin :sinatra_helpers, delegate: false
     #
     # == Class Methods Added
     #
@@ -53,7 +53,7 @@ class Roda
     # and halts the request.  It takes an optional body:
     #
     #   error           # 500 response, empty boby
-    #   error 501       # 501 reponse, empty body
+    #   error 501       # 501 response, empty body
     #   error 'b'       # 500 response, 'b' body
     #   error 501, 'b'  # 501 response, 'b' body
     #
@@ -211,20 +211,10 @@ class Roda
     # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
     # OTHER DEALINGS IN THE SOFTWARE.
     module SinatraHelpers
-      CONTENT_TYPE = "Content-Type".freeze
-      CONTENT_DISPOSITION = "Content-Disposition".freeze
-      CONTENT_LENGTH = "Content-Length".freeze
-      OCTET_STREAM = 'application/octet-stream'.freeze
-      ATTACHMENT = 'attachment'.freeze
-      HTTP_VERSION = 'HTTP_VERSION'.freeze
-      HTTP11 = "HTTP/1.1".freeze
-      HTTP_X_FORWARDED_HOST = "HTTP_X_FORWARDED_HOST".freeze
-      EMPTY_STRING = ''.freeze
-      SLASH = '/'.freeze
-      SEMICOLON = ';'.freeze
-      COMMA = ', '.freeze
-      CHARSET = 'charset'.freeze
-      OPTS = {}.freeze
+      # Depend on the status_303 plugin.
+      def self.load_dependencies(app, _opts = nil)
+        app.plugin :status_303
+      end
 
       # Add delegate methods to the route block scope
       # calling request or response methods, unless the
@@ -323,14 +313,14 @@ class Roda
         def send_file(path, opts = OPTS)
           res = response
           headers = res.headers
-          if opts[:type] || !headers[CONTENT_TYPE]
-            res.content_type(opts[:type] || ::File.extname(path), :default => OCTET_STREAM)
+          if opts[:type] || !headers["Content-Type"]
+            res.content_type(opts[:type] || ::File.extname(path), :default => 'application/octet-stream')
           end
 
           disposition = opts[:disposition]
           filename    = opts[:filename]
           if disposition || filename
-            disposition ||= ATTACHMENT
+            disposition ||= 'attachment'
             filename = path if filename.nil?
             res.attachment(filename, disposition)
           end
@@ -339,12 +329,18 @@ class Roda
             last_modified(lm)
           end
 
-          file      = ::Rack::File.new nil
-          file.path = path
-          s, h, b   = file.serving(@env)
+          file = ::Rack::File.new nil
+          s, h, b = if Rack.release > '2'
+            file.serving(self, path)
+          else
+            # :nocov:
+            file.path = path
+            file.serving(@env)
+            # :nocov:
+          end
 
           res.status = opts[:status] || s
-          headers.delete(CONTENT_LENGTH)
+          headers.delete("Content-Length")
           headers.replace(h.merge!(headers))
           res.body = b
 
@@ -359,14 +355,14 @@ class Roda
           addr = addr.to_s if addr
           return addr if addr =~ /\A[A-z][A-z0-9\+\.\-]*:/
           uri = if absolute
-            h = if @env.has_key?(HTTP_X_FORWARDED_HOST) || port != (ssl? ? 443 : 80)
+            h = if @env.has_key?("HTTP_X_FORWARDED_HOST") || port != (ssl? ? 443 : 80)
               host_with_port
             else
               host
             end
             ["http#{'s' if ssl?}://#{h}"]
           else
-            [EMPTY_STRING]
+            ['']
           end
           uri << script_name.to_s if add_script_name
           uri << (addr || path_info)
@@ -374,22 +370,11 @@ class Roda
         end
         alias url uri
         alias to uri
-
-        private
-
-        # Use a 303 response for non-GET responses if client uses HTTP 1.1.
-        def default_redirect_status
-          if @env[HTTP_VERSION] == HTTP11 && !is_get?
-            303
-          else
-            super
-          end
-        end
       end
 
       module ResponseMethods
         # Set or retrieve the response status code.
-        def status(value = (return @status; nil))
+        def status(value = nil || (return @status))
           @status = value
         end
 
@@ -410,13 +395,13 @@ class Roda
 
         # If the body is a DelayedBody, set the appropriate length for it.
         def finish
-          @length = @body.length if @body.is_a?(DelayedBody) && !@headers[CONTENT_LENGTH]
+          @length = @body.length if @body.is_a?(DelayedBody) && !@headers["Content-Length"]
           super
         end
 
         # Set multiple response headers with Hash, or return the headers if no
         # argument is given.
-        def headers(hash = (return @headers; nil))
+        def headers(hash = nil || (return @headers))
           @headers.merge!(hash)
         end
 
@@ -427,35 +412,35 @@ class Roda
 
         # Set the Content-Type of the response body given a media type or file
         # extension.  See plugin documentation for options.
-        def content_type(type = (return @headers[CONTENT_TYPE]; nil), opts = OPTS)
+        def content_type(type = nil || (return @headers["Content-Type"]), opts = OPTS)
           unless (mime_type = mime_type(type) || opts[:default])
             raise RodaError, "Unknown media type: #{type}"
           end
 
           unless opts.empty?
             opts.each do |key, val|
-              next if key == :default || (key == :charset && mime_type.include?(CHARSET))
+              next if key == :default || (key == :charset && mime_type.include?('charset'))
               val = val.inspect if val =~ /[";,]/
-              mime_type += "#{mime_type.include?(SEMICOLON) ? COMMA : SEMICOLON}#{key}=#{val}"
+              mime_type += "#{mime_type.include?(';') ? ', ' : ';'}#{key}=#{val}"
             end
           end
 
-          @headers[CONTENT_TYPE] = mime_type
+          @headers["Content-Type"] = mime_type
         end
 
         # Set the Content-Disposition to "attachment" with the specified filename,
         # instructing the user agents to prompt to save.
-        def attachment(filename = nil, disposition=ATTACHMENT)
+        def attachment(filename = nil, disposition='attachment')
           if filename
             params = "; filename=#{File.basename(filename).inspect}"
-            unless @headers[CONTENT_TYPE]
+            unless @headers["Content-Type"]
               ext = File.extname(filename)
               unless ext.empty?
                 content_type(ext)
               end
             end
           end
-          @headers[CONTENT_DISPOSITION] = "#{disposition}#{params}"
+          @headers["Content-Disposition"] = "#{disposition}#{params}"
         end
 
         # Whether or not the status is set to 1xx. Returns nil if status not yet set.
@@ -493,8 +478,8 @@ class Roda
         # If a type and value are given, set the value in Rack's MIME registry.
         # If only a type is given, lookup the type in Rack's MIME registry and
         # return it.
-        def mime_type(type=(return; nil), value = nil)
-          return type.to_s if type.to_s.include?(SLASH)
+        def mime_type(type=nil || (return), value = nil)
+          return type.to_s if type.to_s.include?('/')
           type = ".#{type}" unless type.to_s[0] == ?.
           if value
             Rack::Mime::MIME_TYPES[type] = value
@@ -506,17 +491,17 @@ class Roda
 
       module DelegateMethods
         [:logger, :back].each do |meth|
-          define_method(meth){@_request.send(meth)}
+          define_method(meth){@_request.public_send(meth)}
         end
         [:redirect, :uri, :url, :to, :send_file, :error, :not_found].each do |meth|
-          define_method(meth){|*v, &block| @_request.send(meth, *v, &block)}
+          define_method(meth){|*v, &block| @_request.public_send(meth, *v, &block)}
         end
 
         [:informational?, :success?, :redirect?, :client_error?, :server_error?, :not_found?].each do |meth|
-          define_method(meth){@_response.send(meth)}
+          define_method(meth){@_response.public_send(meth)}
         end
         [:status, :body, :headers, :mime_type, :content_type, :attachment].each do |meth|
-          define_method(meth){|*v, &block| @_response.send(meth, *v, &block)}
+          define_method(meth){|*v, &block| @_response.public_send(meth, *v, &block)}
         end
       end
     end

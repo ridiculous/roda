@@ -3,7 +3,7 @@
 #
 class Roda
   module RodaPlugins
-    # The shared_vars plugin adds a shared method for storing
+    # The shared_vars plugin adds a +shared+ method for storing
     # shared variables across nested Roda apps.
     #
     #   class API < Roda
@@ -18,7 +18,7 @@ class Roda
     #     plugin :shared_vars
     #
     #     route do |r|
-    #       r.on :user_id do |user_id|
+    #       r.on Integer do |user_id|
     #         shared[:user] = User[user_id]
     #         r.run API
     #       end
@@ -29,8 +29,8 @@ class Roda
     # vars with the content of the hash:
     #
     #   route do |r|
-    #     r.on :user_id do |user_id|
-    #       shared(:user => User[user_id])
+    #     r.on Integer do |user_id|
+    #       shared(user: User[user_id])
     #       r.run API
     #     end
     #   end
@@ -40,15 +40,13 @@ class Roda
     # previous shared variables afterward:
     #
     #   route do |r|
-    #     r.on :user_id do |user_id|
-    #       shared(:user => User[user_id]) do
+    #     r.on Integer do |user_id|
+    #       shared(user: User[user_id]) do
     #         r.run API
     #       end
     #     end
     #   end
     module SharedVars
-      KEY = 'roda.shared'.freeze
-
       module InstanceMethods
         # Returns the current shared vars for the request.  These are
         # stored in the request's environment, so they will be implicitly
@@ -61,15 +59,15 @@ class Roda
         # only make the changes to the shared vars for the duration of the
         # block, restoring the previous shared vars before the block returns.
         def shared(vars=nil)
-          h = env[KEY] ||= {}
+          h = env['roda.shared'] ||= {}
 
           if block_given?
             if vars
               begin
-                env[KEY] = Hash[h].merge!(vars)
+                env['roda.shared'] = h.merge(vars)
                 yield
               ensure
-                env[KEY] = h
+                env['roda.shared'] = h
               end
             else
               raise RodaError, "must pass a vars hash when calling shared with a block"

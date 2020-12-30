@@ -15,18 +15,22 @@ class Roda
     #
     #   plugin :match_affix, ""
     #
-    # will load the plugin and use an empty prefix.
+    # will load the plugin and use an empty prefix (instead of a slash).
     #
     #   plugin :match_affix, "", /(\/|\z)/
     #
     # will use an empty prefix and change the suffix to consume a trailing slash.
     #
-    #  plugin :match_affix, nil, /(\/|\z)/
+    #  plugin :match_affix, nil, /(?:\/\z|(?=\/|\z))/
     #
-    # will not modify the prefix and will change the suffix to consume a trailing slash.
+    # will not modify the prefix and will change the suffix so that it consumes a trailing slash
+    # at the end of the path only.
+    #
+    # This plugin automatically loads the placeholder_string_matchers plugin.
     module MatchAffix
-      PREFIX = "/".freeze
-      SUFFIX = "(?=\/|\z)".freeze
+      def self.load_dependencies(app, _prefix, _suffix=nil)
+        app.plugin :placeholder_string_matchers
+      end
 
       # Set the default prefix and suffix to use in match patterns, if a non-nil value
       # is given.
@@ -41,7 +45,7 @@ class Roda
         # Use the match prefix and suffix provided when loading the plugin, or fallback
         # to Roda's default prefix/suffix if one was not provided.
         def consume_pattern(pattern)
-          /\A#{roda_class.opts[:match_prefix] || PREFIX}(?:#{pattern})#{roda_class.opts[:match_suffix] || SUFFIX}/
+          /\A#{roda_class.opts[:match_prefix] || "/"}(?:#{pattern})#{roda_class.opts[:match_suffix] || "(?=\/|\z)"}/
         end
       end
 

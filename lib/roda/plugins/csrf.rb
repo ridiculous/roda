@@ -4,11 +4,20 @@ require 'rack/csrf'
 
 class Roda
   module RodaPlugins
+    # This plugin is no longer recommended for use, it exists only for
+    # backwards compatibility.  Consider using the route_csrf plugin
+    # instead, as that provides stronger CSRF protection.
+    #
     # The csrf plugin adds CSRF protection using rack_csrf, along with
     # some csrf helper methods to use in your views.  To use it, load
     # the plugin, with the options hash passed to Rack::Csrf:
     #
-    #   plugin :csrf, :raise=>true
+    #   plugin :csrf, raise: true
+    #
+    # Optionally you can choose not to setup rack_csrf middleware on the
+    # roda app if you already have one configured:
+    #
+    #   plugin :csrf, skip_middleware: true
     #
     # This adds the following instance methods:
     #
@@ -26,6 +35,7 @@ class Roda
 
       # Load the Rack::Csrf middleware into the app with the given options.
       def self.configure(app, opts={})
+        return if opts[:skip_middleware]
         app.instance_exec do
           @middleware.each do |(mid, *rest), _|
             if mid.equal?(CSRF)

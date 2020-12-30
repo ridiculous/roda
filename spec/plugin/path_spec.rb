@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "path plugin" do 
   def path_app(*args, &block)
@@ -77,9 +77,38 @@ describe "path plugin" do
     body("foo_path", 'SCRIPT_NAME'=>'/baz').must_equal "/bar/foo"
   end
 
+  it "respects :add_script_name app option for automatically adding the script name for url methods" do
+    path_script_name_app(:foo, :url=>true){"/bar/foo"}
+    body("foo_url", 'SCRIPT_NAME'=>'/baz', 'HTTP_HOST'=>'example.org', "rack.url_scheme"=>'http', 'SERVER_PORT'=>80).must_equal "http://example.org/baz/bar/foo"
+  end
+
+  it "supports :add_script_name=>false option for not automatically adding the script name for url methods" do
+    path_script_name_app(:foo, :add_script_name=>false, :url=>true){"/bar/foo"}
+    body("foo_url", 'SCRIPT_NAME'=>'/baz', 'HTTP_HOST'=>'example.org', "rack.url_scheme"=>'http', 'SERVER_PORT'=>80).must_equal "http://example.org/bar/foo"
+  end
+
   it "supports path method accepting a block when using :add_script_name" do
     path_block_app(lambda{"c"}, :foo, :add_script_name=>true){|&block| "/bar/foo/#{block.call}"}
     body("foo_path", 'SCRIPT_NAME'=>'/baz').must_equal "/baz/bar/foo/c"
+  end
+
+  it "supports :relative option for returning paths relative to the current request" do
+    app(:bare) do
+      plugin :path
+      path("bar", :relative=>true){"/bar/foo"}
+      route{|r| bar_path}
+    end
+    body.must_equal "./bar/foo"
+    body('/a').must_equal "./bar/foo"
+    body('/a/').must_equal "../bar/foo"
+    body('/a/b/c/d').must_equal "../../../bar/foo"
+    body('/a/b/c/d', "SCRIPT_NAME"=>"/e").must_equal "../../../../e/bar/foo"
+  end
+
+  it "raises Error if :relative option to be used with :url or :url_only options" do
+    app.plugin :path
+    proc{app.path("bar", :relative=>true, :url=>true){"/bar/foo"}}.must_raise Roda::RodaError
+    proc{app.path("bar", :relative=>true, :url_only=>true){"/bar/foo"}}.must_raise Roda::RodaError
   end
 
   it "supports :url option for also creating a *_url method" do
@@ -107,7 +136,7 @@ describe "path plugin" do
 
   it "handles non-default ports in url methods" do
     path_app(:foo, :url=>true){"/bar/foo"}
-    body("foo_url", 'HTTP_HOST'=>'example.org', "rack.url_scheme"=>'http', 'SERVER_PORT'=>81).must_equal "http://example.org:81/bar/foo"
+    body("foo_url", 'HTTP_HOST'=>'example.org:81', "rack.url_scheme"=>'http', 'SERVER_PORT'=>81).must_equal "http://example.org:81/bar/foo"
   end
 end
 
@@ -115,9 +144,11 @@ describe "path plugin" do
   before do
     app(:bare) do
       plugin :path
-      route{|r| path(*env['path'])}
+      route do |r|
+        r.get("url"){url(*env['path'])}
+        path(*env['path'])
+      end
     end
-
 
     c = Class.new{attr_accessor :a}
     app.path(c){|obj, *args| "/d/#{obj.a}/#{File.join(*args)}"}
@@ -163,6 +194,12 @@ describe "path plugin" do
 
     @app = old_app
     body('path'=>'/a').must_equal '/a'
+  end
+
+  it "Roda#url works similar to Roda#path but turns it into a full URL" do
+    body("/url", 'path'=>@obj, 'HTTP_HOST'=>'example.org', "rack.url_scheme"=>'http', 'SERVER_PORT'=>80).must_equal 'http://example.org/d/1/'
+    body("/url", 'path'=>[@obj, 'foo'], 'HTTP_HOST'=>'example.org', "rack.url_scheme"=>'https', 'SERVER_PORT'=>443).must_equal 'https://example.org/d/1/foo'
+    body("/url", 'path'=>[@obj, 'foo', 'bar'], 'HTTP_HOST'=>'example.org:81', "rack.url_scheme"=>'http', 'SERVER_PORT'=>81).must_equal 'http://example.org:81/d/1/foo/bar'
   end
 
   it "registers classes by reference by default" do
@@ -217,6 +254,20 @@ describe "path plugin" do
   it "Roda.path doesn't work after freezing the app" do
     app.freeze
     proc{app.path(Class.new){|obj| ''}}.must_raise
+  end
+
+  it "works if the plugin is loaded twice" do
+    app(:bare) do
+      plugin :path
+      plugin :path
+      path :foo, "/foo"
+
+      route do |r|
+        "#{foo_path}"
+      end
+    end
+
+    body.must_equal '/foo'
   end
 end
 

@@ -33,30 +33,26 @@ class Roda
     # can specifically set the allowed classes to json by adding
     # using the :classes option when loading the plugin:
     #
-    #   plugin :json, :classes=>[Array, Hash, Sequel::Model]
+    #   plugin :json, classes: [Array, Hash, Sequel::Model]
     #
     # By default objects are serialized with +to_json+, but you
     # can pass in a custom serializer, which can be any object
     # that responds to +call(object)+.
     #
-    #   plugin :json, :serializer=>proc{|o| o.to_json(root: true)}
+    #   plugin :json, serializer: proc{|o| o.to_json(root: true)}
     #
     # If you need the request information during serialization, such
     # as HTTP headers or query parameters, you can pass in the
     # +:include_request+ option, which will pass in the request
     # object as the second argument when calling the serializer.
     #
-    #   plugin :json, :include_request=>true, :serializer=>proc{|o, request| ...}
+    #   plugin :json, include_request: true, serializer: proc{|o, request| ...}
     #
     # The default content-type is 'application/json', but you can change that
     # using the +:content_type+ option:
     #
-    #   plugin :json, :content_type=>'application/xml'
+    #   plugin :json, content_type: 'application/xml'
     module Json
-      OPTS = {}.freeze
-      DEFAULT_SERIALIZER = lambda{|o| o.to_json}
-      DEFAULT_CONTENT_TYPE = 'application/json'.freeze
-
       # Set the classes to automatically convert to JSON, and the serializer to use.
       def self.configure(app, opts=OPTS)
         classes = opts[:classes] || [Array, Hash]
@@ -65,11 +61,11 @@ class Roda
         app.opts[:json_result_classes].uniq!
         app.opts[:json_result_classes].freeze
 
-        app.opts[:json_result_serializer] = opts[:serializer] || app.opts[:json_result_serializer] || DEFAULT_SERIALIZER
+        app.opts[:json_result_serializer] = opts[:serializer] || app.opts[:json_result_serializer] || app.opts[:json_serializer] || :to_json.to_proc
 
-        app.opts[:json_result_include_request] = opts[:include_request] || app.opts[:json_result_include_request]
+        app.opts[:json_result_include_request] = opts[:include_request] if opts.has_key?(:include_request)
 
-        app.opts[:json_result_content_type] = opts[:content_type] || DEFAULT_CONTENT_TYPE
+        app.opts[:json_result_content_type] = opts[:content_type] || 'application/json'.freeze
       end
 
       module ClassMethods
@@ -80,8 +76,6 @@ class Roda
       end
 
       module RequestMethods
-        CONTENT_TYPE = 'Content-Type'.freeze
-
         private
 
         # If the result is an instance of one of the json_result_classes,
@@ -90,7 +84,7 @@ class Roda
         def block_result_body(result)
           case result
           when *roda_class.json_result_classes
-            response[CONTENT_TYPE] ||= roda_class.opts[:json_result_content_type]
+            response['Content-Type'] ||= roda_class.opts[:json_result_content_type]
             convert_to_json(result)
           else
             super

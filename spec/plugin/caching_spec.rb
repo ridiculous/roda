@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe 'response.cache_control' do
   it 'sets the Cache-Control header' do
@@ -12,7 +12,14 @@ describe 'response.cache_control' do
     app(:caching) do |r|
       response.cache_control({})
     end
-    header('Cache-Control').must_equal nil
+    header('Cache-Control').must_be_nil
+  end
+
+  it 'skips Cache-Control nil parameters' do
+    app(:caching) do |r|
+      response.cache_control(:max_age=>nil)
+    end
+    header('Cache-Control').must_be_nil
   end
 end
 
@@ -38,14 +45,16 @@ describe 'response.finish' do
   it 'removes Content-Type and Content-Length for 304 responses' do
     app(:caching) do |r|
       response.status = 304
+      nil
     end
-    header('Content-Type').must_equal nil
-    header('Content-Length').must_equal nil
+    header('Content-Type').must_be_nil
+    header('Content-Length').must_be_nil
   end
 
   it 'does not change non-304 responses' do
     app(:caching) do |r|
       response.status = 200
+      nil
     end
     header('Content-Type').must_equal 'text/html'
     header('Content-Length').must_equal '0'
@@ -57,7 +66,7 @@ describe 'request.last_modified' do
     app(:caching) do |r|
       r.last_modified nil
     end
-    header('Last-Modified').must_equal nil
+    header('Last-Modified').must_be_nil
   end
 
   it 'does not change a status other than 200' do

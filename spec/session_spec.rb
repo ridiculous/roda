@@ -1,6 +1,8 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "session handling" do
+  include CookieJar
+
   it "should give a warning if session variable is not available" do
     app do |r|
       begin
@@ -10,10 +12,10 @@ describe "session handling" do
       end
     end
 
-    body.must_match(/use Rack::Session::Cookie/)
+    body.must_match("You're missing a session handler, try using the sessions plugin.")
   end
 
-  it "should return session if available" do
+  it "should return session if rack session middleware is used" do
     app(:bare) do
       use Rack::Session::Cookie, :secret=>'1'
 
@@ -25,11 +27,11 @@ describe "session handling" do
       end
     end
 
-    _, h, b = req
+    _, _, b = req
     b.join.must_equal 'ab'
-    _, h, b = req('HTTP_COOKIE'=>h['Set-Cookie'].sub("; path=/; HttpOnly", ''))
+    _, _, b = req
     b.join.must_equal 'abb'
-    _, h, b = req('HTTP_COOKIE'=>h['Set-Cookie'].sub("; path=/; HttpOnly", ''))
+    _, _, b = req
     b.join.must_equal 'abbb'
   end
 end

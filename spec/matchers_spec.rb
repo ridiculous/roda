@@ -1,7 +1,7 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "capturing" do
-  it "doesn't yield the verb" do
+  it "doesn't yield the verb for verb matcher" do
     app do |r|
       r.get do |*args|
         args.size.to_s
@@ -11,7 +11,7 @@ describe "capturing" do
     body.must_equal '0'
   end
 
-  it "doesn't yield the path" do
+  it "doesn't yield the path for string matcher" do
     app do |r|
       r.get "home" do |*args|
         args.size.to_s
@@ -21,7 +21,7 @@ describe "capturing" do
     body('/home').must_equal '0'
   end
 
-  it "yields the segment" do
+  it "yields the segment for symbol matcher" do
     app do |r|
       r.get "user", :id do |id|
         id
@@ -31,7 +31,7 @@ describe "capturing" do
     body("/user/johndoe").must_equal 'johndoe'
   end
 
-  it "yields a number" do
+  it "yields an integer segment as a string when using symbol matcher" do
     app do |r|
       r.get "user", :id do |id|
         id
@@ -41,7 +41,7 @@ describe "capturing" do
     body("/user/101").must_equal '101'
   end
 
-  it "yields a segment per nested block" do
+  it "yields a segment per nested block for symbol matcher" do
     app do |r|
       r.on :one do |one|
         r.on :two do |two|
@@ -55,7 +55,17 @@ describe "capturing" do
     body("/one/two/three").must_equal "onetwothree"
   end
 
-  it "regex captures in regex format" do
+  it "yields a segment per argument for symbol matcher" do
+    app do |r|
+      r.on :one, :two, :three do |one, two, three|
+        one + two + three
+      end
+    end
+
+    body("/one/two/three").must_equal "onetwothree"
+  end
+
+  it "yields regex captures as separate arguments" do
     app do |r|
       r.get %r{posts/(\d+)-(.*)} do |id, slug|
         id + slug
@@ -63,6 +73,38 @@ describe "capturing" do
     end
 
     body("/posts/123-postal-service").must_equal "123postal-service"
+  end
+
+  it "yields an integer segment as an integer when using Integer matcher " do
+    app do |r|
+      r.get "user", Integer do |id|
+        "#{id}-#{id.is_a?(Integer)}"
+      end
+      "b"
+    end
+
+    body("/user/101").must_equal '101-true'
+    body("/user/a").must_equal 'b'
+  end
+
+  it "yields the segment for String class matcher" do
+    app do |r|
+      r.get "user", String do |id|
+        id
+      end
+    end
+
+    body("/user/johndoe").must_equal 'johndoe'
+  end
+
+  it "raises error for unsupported class matcher" do
+    app do |r|
+      r.get Hash do |id|
+        id
+      end
+    end
+
+    proc{status}.must_raise Roda::RodaError
   end
 end
 
@@ -113,6 +155,18 @@ describe "r.is" do
     status("/123/").must_equal 404
   end
 
+  it "matches regexps" do
+    app do |r|
+      r.on(/foo/) do |id|
+        'a'
+      end
+    end
+
+    body("/foo").must_equal 'a'
+    body("/foo/").must_equal 'a'
+    status("/food").must_equal 404
+  end
+
   it "matches segments" do
     app do |r|
       r.is :id do |id|
@@ -126,48 +180,22 @@ describe "r.is" do
 end
 
 describe "matchers" do
-  it "should handle string with embedded param" do
+  it "should not handle string with embedded param if :verbatim_string_matcher option is set" do
     app do |r|
-      r.on "posts/:id" do |id|
-        id
+      r.on "posts/:id" do
+        '1'
+      end
+
+      r.on "responses-:id" do
+        '2'
       end
     end
 
-    body('/posts/123').must_equal '123'
     status('/post/123').must_equal 404
-  end
-
-  it "should handle multiple params in single string" do
-    app do |r|
-      r.on "u/:uid/posts/:id" do |uid, id|
-        uid + id
-      end
-    end
-
-    body("/u/jdoe/posts/123").must_equal 'jdoe123'
-    status("/u/jdoe/pots/123").must_equal 404
-  end
-
-  it "should escape regexp metacharaters in string" do
-    app do |r|
-      r.on "u/:uid/posts?/:id" do |uid, id|
-        uid + id
-      end
-    end
-
-    body("/u/jdoe/posts?/123").must_equal 'jdoe123'
-    status("/u/jdoe/post/123").must_equal 404
-  end
-
-  it "should handle colons by themselves" do
-    app do |r|
-      r.on "u/:/:uid/posts/::id" do |uid, id|
-        uid + id
-      end
-    end
-
-    body("/u/:/jdoe/posts/:123").must_equal 'jdoe123'
-    status("/u/a/jdoe/post/b123").must_equal 404
+    status('/posts/123').must_equal 404
+    body('/posts/:id').must_equal '1'
+    status('/responses-123').must_equal 404
+    body('/responses-:id').must_equal '2'
   end
 
   it "should handle regexes and nesting" do
@@ -247,6 +275,39 @@ describe "matchers" do
     status('/123bard').must_equal 404
   end
 
+  it "should allow arrays to match optional segments with splats" do
+    app do |r|
+      r.on :foo, [:bar, true] do |*m|
+        m.inspect
+      end
+    end
+
+    body('/123').must_equal '["123"]'
+    body('/123/456').must_equal '["123", "456"]'
+  end
+
+  it "should allow arrays to match optional segments with separate arguments" do
+    app do |r|
+      r.on :foo, [:bar, true] do |f, b|
+        [f, b].inspect
+      end
+    end
+
+    body('/123').must_equal '["123", nil]'
+    body('/123/456').must_equal '["123", "456"]'
+  end
+
+  it "should allow regexp to match optional segments with separate arguments" do
+    app do |r|
+      r.on(/(\d+)(?:\/(\d+))?/) do |f, b|
+        [f, b].inspect
+      end
+    end
+
+    body('/123').must_equal '["123", nil]'
+    body('/123/456').must_equal '["123", "456"]'
+  end
+
   it "should have array capture match string if match" do
     app do |r|
       r.on %w'p q' do |id|
@@ -279,6 +340,38 @@ describe "r.on" do
     end
 
     body.must_equal '+1'
+  end
+
+  it "does not execute on false" do
+    app do |r|
+      r.on false do
+        "+1"
+      end
+    end
+
+    status.must_equal 404
+  end
+
+  it "does not execute on nil" do
+    app do |r|
+      r.on nil do
+        "+1"
+      end
+    end
+
+    status.must_equal 404
+  end
+
+  it "raises on arbitrary object" do
+    app(:bare) do 
+      route do |r|
+        r.on Object.new do
+          "+1"
+        end
+      end
+    end
+
+    proc{body}.must_raise Roda::RodaError
   end
 
   it "executes on non-false" do
@@ -693,5 +786,47 @@ describe "route block that returns string" do
     end
 
     body.must_equal '+1'
+  end
+end
+
+describe "app with :unsupported_block_result => :raise option" do
+  def app_value(v)
+    app(:bare) do
+      opts[:unsupported_block_result] = :raise
+      route do |r|
+        r.is 'a' do v end
+        v
+      end
+    end
+  end
+
+  it "should handle String as body" do
+    app_value '1'
+    status.must_equal 200
+    body.must_equal '1'
+    status('/a').must_equal 200
+    body('/a').must_equal '1'
+  end
+
+  it "should handle nil and false as not found" do
+    app_value nil
+    status.must_equal 404
+    body.must_equal ''
+    status('/a').must_equal 404
+    body('/a').must_equal ''
+  end
+
+  it "should handle false as not found" do
+    app_value false
+    status.must_equal 404
+    body.must_equal ''
+    status('/a').must_equal 404
+    body('/a').must_equal ''
+  end
+
+  it "should raise RodaError for other types" do
+    app_value Object.new
+    proc{body}.must_raise Roda::RodaError
+    proc{body('/a')}.must_raise Roda::RodaError
   end
 end

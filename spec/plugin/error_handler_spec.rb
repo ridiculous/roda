@@ -1,9 +1,36 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "error_handler plugin" do 
   it "executes only if error raised" do
     app(:bare) do
       plugin :error_handler
+
+      error do |e|
+        e.message
+      end
+
+      route do |r|
+        r.on "a" do
+          "found"
+        end
+
+        raise ArgumentError, "bad idea"
+      end
+    end
+
+    body("/a").must_equal 'found'
+    status("/a").must_equal 200
+    body.must_equal 'bad idea'
+    status.must_equal 500
+  end
+
+  deprecated "works if #call is overridden" do
+    app(:bare) do
+      plugin :error_handler
+
+      def call
+        super
+      end
 
       error do |e|
         e.message
@@ -45,6 +72,31 @@ describe "error_handler plugin" do
     status("/a").must_equal 200
     body.must_equal 'bad idea'
     status.must_equal 500
+  end
+
+  it "executes on custom exception classes" do
+    app(:bare) do
+      plugin :error_handler, :classes=>[StandardError]
+
+      error do |e|
+        e.message
+      end
+
+      route do |r|
+        r.on "a" do
+          raise 'foo'
+        end
+
+        raise SyntaxError, 'bad idea'
+      end
+    end
+
+    proc{body}.must_raise SyntaxError
+    body("/a").must_equal 'foo'
+
+    @app = Class.new(@app)
+    proc{body}.must_raise SyntaxError
+    body("/a").must_equal 'foo'
   end
 
   it "can override status inside error block" do
@@ -90,7 +142,7 @@ describe "error_handler plugin" do
     end
 
     header('Content-Type').must_equal 'text/html'
-    header('Foo').must_equal nil
+    header('Foo').must_be_nil
   end
 
   it "can set error via the plugin block" do
@@ -117,6 +169,28 @@ describe "error_handler plugin" do
     end
 
     proc{req}.must_raise(ArgumentError)
+  end
+
+  it "logs exceptions during after processing of error handler" do
+    app(:bare) do
+      plugin :error_handler do |e|
+        e.message * 2
+      end
+      plugin :hooks
+
+      after do
+        raise "foo"
+      end
+
+      route do |r|
+        ''
+      end
+    end
+
+    errors = StringIO.new
+    body('rack.errors'=>errors).must_equal 'foofoo'
+    errors.rewind
+    errors.read.split("\n").first.must_equal "Error in after hook processing of error handler: RuntimeError: foo"
   end
 
   it "has access to current remaining_path" do

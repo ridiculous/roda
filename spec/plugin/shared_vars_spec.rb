@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "shared_vars plugin" do 
   it "adds shared method for sharing variables across multiple apps" do

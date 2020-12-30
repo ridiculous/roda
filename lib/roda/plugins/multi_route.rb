@@ -9,9 +9,13 @@ class Roda
     # and if the named route does handle the request, the response returned by
     # the named route will be returned.
     #
-    # In addition, this also adds the +r.multi_route+ method, which will assume
-    # check if the first segment in the path matches a named route, and dispatch
+    # In addition, this plugin adds the +r.multi_route+ method, which will check
+    # if the first segment in the path matches a named route, and dispatch
     # to that named route.
+    #
+    # The hash_routes plugin offers a +r.hash_routes+ method that is similar to
+    # and performs better than the +r.multi_route+ method, and it is recommended
+    # to consider using that instead of this plugin.
     #
     # Example:
     #
@@ -133,10 +137,13 @@ class Roda
       end
 
       module ClassMethods
-        # Freeze the namespaced routes so that there can be no thread safety issues at runtime.
+        # Freeze the namespaced routes and setup the regexp matchers so that there can be no thread safety issues at runtime.
         def freeze
-          opts[:namespaced_routes].freeze
-          opts[:namespaced_routes].each_value(&:freeze)
+          opts[:namespaced_routes].freeze.each do |k,v|
+            v.freeze
+            self::RodaRequest.named_route_regexp(k)
+          end
+          self::RodaRequest.instance_variable_get(:@namespaced_route_regexps).freeze
           super
         end
 
@@ -150,8 +157,10 @@ class Roda
 
         # The names for the currently stored named routes
         def named_routes(namespace=nil)
-          routes = opts[:namespaced_routes][namespace]
-          routes ? routes.keys : []
+          unless routes = opts[:namespaced_routes][namespace]
+            raise RodaError, "unsupported multi_route namespace used: #{namespace.inspect}"
+          end
+          routes.keys
         end
 
         # Return the named route with the given name.
@@ -164,8 +173,8 @@ class Roda
         # call super.
         def route(name=nil, namespace=nil, &block)
           if name
-            opts[:namespaced_routes][namespace] ||= {}
-            opts[:namespaced_routes][namespace][name] = block
+            routes = opts[:namespaced_routes][namespace] ||= {}
+            routes[name] = define_roda_method(routes[name] || "multi_route_#{namespace}_#{name}", 1, &convert_route_block(block))
             self::RodaRequest.clear_named_route_regexp!(namespace)
           else
             super(&block)
@@ -208,7 +217,7 @@ class Roda
 
         # Dispatch to the named route with the given name.
         def route(name, namespace=nil)
-          scope.instance_exec(self, &roda_class.named_route(name, namespace))
+          scope.send(roda_class.named_route(name, namespace), self)
         end
       end
     end

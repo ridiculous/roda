@@ -27,10 +27,15 @@ class Roda
     #       end
     #     end
     #   end
+    #
+    # You can modify the flash for the current request (instead of
+    # the next request) by using the +flash.now+ method:
+    #
+    #   r.get do
+    #     flash.now['a'] = 'b'
+    #     flash['a'] # = >'b'
+    #   end
     module Flash
-      # The internal session key used to store the flash.
-      KEY = :_flash
-
       # Simple flash hash, where assiging to the hash updates the flash
       # used in the following request.
       class FlashHash < DelegateClass(Hash)
@@ -86,19 +91,23 @@ class Roda
         # Access the flash hash for the current request, loading
         # it from the session if it is not already loaded.
         def flash
-          @_flash ||= FlashHash.new(session[KEY])
+          # :_flash to support transparent upgrades from previous key
+          @_flash ||= FlashHash.new(session['_flash'] || (session['_flash'] = session.delete(:_flash)))
         end
+
+        private
 
         # If the routing doesn't raise an error, rotate the flash
         # hash in the session so the next request has access to it.
-        def call
-          res = super
-
+        def _roda_after_40__flash(_)
           if f = @_flash
-            session[KEY] = f.next
+            f = f.next
+            if f.empty?
+              session.delete('_flash')
+            else
+              session['_flash'] = f
+            end
           end
-
-          res
         end
       end
     end

@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "error_email plugin" do 
   def app(opts={})
@@ -7,7 +7,8 @@ describe "error_email plugin" do
       plugin :error_email, {:to=>'t', :from=>'f', :emailer=>lambda{|h| emails << h}}.merge(opts)
 
       route do |r|
-        raise ArgumentError rescue error_email($!)
+        r.get('noerror'){error_email("Problem"); 'g'}
+        raise ArgumentError, 'bad foo' rescue error_email($!)
         'e'
       end
     end
@@ -23,8 +24,37 @@ describe "error_email plugin" do
     email[:to].must_equal 't'
     email[:from].must_equal 'f'
     email[:host].must_equal 'localhost'
-    email[:message].must_match(/^Subject: ArgumentError/)
+    email[:message].must_match(/^Subject: ArgumentError: bad foo/)
     email[:message].must_match(/^Backtrace:$.+^ENV:$.+^"rack\.input" => .+^Params:$\s+^"b" => "c"$\s+^Session:$\s+^"d" => "e"$/m)
+  end
+
+  it "have error_email method support string arguments" do
+    app
+    body('/noerror', 'rack.input'=>StringIO.new, 'QUERY_STRING'=>'b=c', 'rack.session'=>{'d'=>'e'}).must_equal 'g'
+    email[:to].must_equal 't'
+    email[:from].must_equal 'f'
+    email[:host].must_equal 'localhost'
+    email[:message].must_match(/^Subject: Problem/)
+    email[:message].must_match(/^ENV:$.+^"rack\.input" => .+^Params:$\s+^"b" => "c"$\s+^Session:$\s+^"d" => "e"$/m)
+    email[:message].wont_include('Backtrace')
+  end
+
+  it "supports error_email_content for the content of the email" do
+    app.route do |r|
+      raise ArgumentError, 'bad foo' rescue error_email_content($!)
+    end
+    b = body('rack.input'=>StringIO.new, 'QUERY_STRING'=>'b=c', 'rack.session'=>{'d'=>'e'})
+    b.must_match(/^Subject: ArgumentError: bad foo/)
+    b.must_match(/^Backtrace:$.+^ENV:$.+^"rack\.input" => .+^Params:$\s+^"b" => "c"$\s+^Session:$\s+^"d" => "e"$/m)
+  end
+
+  it "handles invalid parameters in error_email_content" do
+    app.route do |r|
+      raise ArgumentError, 'bad foo' rescue error_email_content($!)
+    end
+    b = body('rack.input'=>StringIO.new, 'QUERY_STRING'=>"b=%c", 'rack.session'=>{'d'=>'e'})
+    b.must_match(/^Subject: ArgumentError: bad foo/)
+    b.must_match(/^Backtrace:$.+^ENV:$.+^"rack\.input" => .+^Params:$\s+^Invalid Parameters!$\s+^Session:$\s+^"d" => "e"$/m)
   end
 
   it "uses :host option" do

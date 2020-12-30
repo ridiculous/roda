@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(__FILE__))
+require_relative "spec_helper"
 
 describe "integration" do 
   before do
@@ -52,6 +52,27 @@ describe "integration" do
     end
 
     body('/hello').must_equal 'D   '
+  end
+
+  it "should freeze middleware if opts[:freeze_middleware] is true" do
+    c = Class.new do
+      def initialize(app) @app = app end
+      def call(env) @a = 1; @app.call(env) end
+    end
+
+    app do 
+      "D"
+    end
+
+    body.must_equal 'D'
+
+    app.use c
+    body.must_equal 'D'
+
+    app.clear_middleware!
+    app.opts[:freeze_middleware] = true
+    app.use c
+    proc{body}.must_raise RuntimeError, TypeError
   end
 
   it "should support adding middleware using use after route block setup" do
@@ -174,7 +195,7 @@ describe "integration" do
   end
 
   it "should have app return the rack application to call" do
-    app(:bare){}.app.must_equal nil
+    app(:bare){}.app.must_be_kind_of(Proc)
     app.route{|r|}
     app.app.must_be_kind_of(Proc)
     c = Class.new{def initialize(app) @app = app end; def call(env) @app.call(env) end} 

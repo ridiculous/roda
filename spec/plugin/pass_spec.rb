@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "pass plugin" do 
   it "skips the current block if pass is called" do
@@ -13,7 +13,7 @@ describe "pass plugin" do
         id
       end
 
-      r.on ":x/:y" do |x, y|
+      r.on :x, :y do |x, y|
         x + y
       end
     end

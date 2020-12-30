@@ -9,7 +9,7 @@ class Roda
     # It adds a :param matcher for matching on any param with the
     # same name, yielding the value of the param:
     #
-    #   r.on :param => 'foo' do |value|
+    #   r.on param: 'foo' do |foo|
     #     # Matches '?foo=bar', '?foo='
     #     # Doesn't match '?bar=foo'
     #   end
@@ -17,7 +17,7 @@ class Roda
     # It adds a :param! matcher for matching on any non-empty param
     # with the same name, yielding the value of the param:
     #
-    #   r.on(:param! => 'foo') do |value|
+    #   r.on(param!: 'foo') do |foo|
     #     # Matches '?foo=bar'
     #     # Doesn't match '?foo=', '?bar=foo'
     #   end
@@ -25,22 +25,29 @@ class Roda
     # It also adds :params and :params! matchers, for matching multiple
     # params at the same time:
     #
-    #   r.on :params => ['foo', 'baz'] do |value|
+    #   r.on params: ['foo', 'baz'] do |foo, baz|
     #     # Matches '?foo=bar&baz=quuz', '?foo=&baz='
     #     # Doesn't match '?foo=bar', '?baz='
     #   end
     #
-    #   r.on :params! => ['foo', 'baz'] do |value|
+    #   r.on params!: ['foo', 'baz'] do |foo, baz|
     #     # Matches '?foo=bar&baz=quuz'
     #     # Doesn't match '?foo=bar', '?baz=', '?foo=&baz=', '?foo=bar&baz='
     #   end
     #
+    # Because users have some control over the types of submitted parameters,
+    # it is recommended that you explicitly force the correct type for values
+    # yielded by the block:
+    #
+    #   r.get(:param=>'foo') do |foo|
+    #     foo = foo.to_s
+    #   end
     module ParamMatchers
       module RequestMethods
         # Match the given parameter if present, even if the parameter is empty.
         # Adds match to the captures.
         def match_param(key)
-          if v = self[key]
+          if v = params[key.to_s]
             @captures << v
           end
         end
@@ -48,7 +55,7 @@ class Roda
         # Match the given parameter if present and not empty.
         # Adds match to the captures.
         def match_param!(key)
-          if (v = self[key]) && !v.empty?
+          if (v = params[key.to_s]) && !v.empty?
             @captures << v
           end
         end

@@ -30,60 +30,59 @@ class Roda
     # Note that the after hook is called with the rack response array
     # of status, headers, and body.  If it wants to change the response,
     # it must mutate this argument, calling <tt>response.status=</tt> inside
-    # an after block will not affect the returned status.
+    # an after block will not affect the returned status. Note that after
+    # hooks can be called with nil if an exception is raised during routing.
     module Hooks
       def self.configure(app)
-        app.opts[:before_hook] ||= nil
-        app.opts[:after_hook] ||= nil
+        app.opts[:after_hooks] ||= []
+        app.opts[:before_hooks] ||= []
       end
 
       module ClassMethods
-        # Add an after hook.  If there is already an after hook defined,
-        # use a proc that instance_execs the existing after proc and
-        # then instance_execs the given after proc, so that the given
-        # after proc always executes after the previous one.
-        def after(&block)
-          opts[:after_hook] = if b = opts[:after_hook]
-            proc do |res|
-              instance_exec(res, &b)
-              instance_exec(res, &block)
-            end
-          else
-            block
-          end
+        # Freeze the array of hook methods when freezing the app.
+        def freeze
+          opts[:after_hooks].freeze
+          opts[:before_hooks].freeze
+
+          super
         end
 
-        # Add a before hook.  If there is already a before hook defined,
-        # use a proc that instance_execs the give before proc and
-        # then instance_execs the existing before proc, so that the given
-        # before proc always executes before the previous one.
-        def before(&block)
-          opts[:before_hook] = if b = opts[:before_hook]
-            proc do
-              instance_exec(&block)
-              instance_exec(&b)
-            end
+        # Add an after hook.
+        def after(&block)
+          opts[:after_hooks] << define_roda_method("after_hook", 1, &block)
+          if opts[:after_hooks].length == 1
+            class_eval("alias _roda_after_80__hooks #{opts[:after_hooks].first}", __FILE__, __LINE__)
           else
-            block
+            class_eval("def _roda_after_80__hooks(res) #{opts[:after_hooks].map{|m| "#{m}(res)"}.join(';')} end", __FILE__, __LINE__)
           end
+          private :_roda_after_80__hooks
+          def_roda_after
+          nil
+        end
+
+        # Add a before hook.
+        def before(&block)
+          opts[:before_hooks].unshift(define_roda_method("before_hook", 0, &block))
+          if opts[:before_hooks].length == 1
+            class_eval("alias _roda_before_10__hooks #{opts[:before_hooks].first}", __FILE__, __LINE__)
+          else
+            class_eval("def _roda_before_10__hooks; #{opts[:before_hooks].join(';')} end", __FILE__, __LINE__)
+          end
+          private :_roda_before_10__hooks
+          def_roda_before
+          nil
         end
       end
 
       module InstanceMethods
-        # Before routing, execute the before hooks, and
-        # execute the after hooks before returning.
-        def call(&block)
-          res = super do |r|
-            if b = opts[:before_hook]
-              instance_exec(&b)
-            end
+        private
 
-            instance_exec(r, &block)
-          end
-        ensure
-          if b = opts[:after_hook]
-            instance_exec(res, &b)
-          end
+        # Default method if no after hooks are defined.
+        def _roda_after_80__hooks(res)
+        end
+
+        # Default method if no before hooks are defined.
+        def _roda_before_10__hooks
         end
       end
     end

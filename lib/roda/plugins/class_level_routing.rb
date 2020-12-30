@@ -43,7 +43,7 @@ class Roda
     #     end
     #   end
     #
-    # When using the the class_level_routing plugin with nested routes, you may also want to use the
+    # When using the class_level_routing plugin with nested routes, you may also want to use the
     # delegate plugin to delegate certain instance methods to the request object, so you don't have
     # to continually use +request.+ in your routing blocks.
     #
@@ -56,15 +56,15 @@ class Roda
       # currently have a routing block, setup an empty routing block so that things will still work if
       # a routing block isn't added.
       def self.configure(app)
-        app.route{} unless app.route_block
         app.opts[:class_level_routes] ||= []
       end
 
       module ClassMethods
         # Define routing methods that will store class level routes.
-        [:root, :on, :is, :get, :post, :delete, :head, :options, :link, :patch, :put, :trace, :unlink].each do |meth|
-          define_method(meth) do |*args, &block|
-            opts[:class_level_routes] << [meth, args, block].freeze
+        [:root, :on, :is, :get, :post, :delete, :head, :options, :link, :patch, :put, :trace, :unlink].each do |request_meth|
+          define_method(request_meth) do |*args, &block|
+            meth = define_roda_method("class_level_routing_#{request_meth}", :any, &block)
+            opts[:class_level_routes] << [request_meth, args, meth].freeze
           end
         end
 
@@ -76,27 +76,31 @@ class Roda
       end
 
       module InstanceMethods
+        def initialize(_)
+          super
+          @_original_remaining_path = @_request.remaining_path
+        end
+
+        private
+
         # If the normal routing tree doesn't handle an action, try each class level route
         # to see if it matches.
-        def call
-          req = @_request
-          rp = req.remaining_path
-          result = super
-
-          if result[0] == 404 && (v = result[2]).is_a?(Array) && v.empty?
+        def _roda_after_10__class_level_routing(result)
+          if result && result[0] == 404 && (v = result[2]).is_a?(Array) && v.empty?
             # Reset the response so it doesn't inherit the status or any headers from
             # the original response.
-            @_response = self.class::RodaResponse.new
-            super do |r|
-              opts[:class_level_routes].each do |meth, args, blk|
-                req.instance_variable_set(:@remaining_path, rp)
-                r.send(meth, *args) do |*a|
-                  instance_exec(*a, &blk)
+            @_response.send(:initialize)
+            @_response.status = nil
+            result.replace(_roda_handle_route do
+              r = @_request
+              opts[:class_level_routes].each do |request_meth, args, meth|
+                r.instance_variable_set(:@remaining_path, @_original_remaining_path)
+                r.public_send(request_meth, *args) do |*a|
+                  send(meth, *a)
                 end
               end
-            end
-          else
-            result
+              nil
+            end)
           end
         end
       end

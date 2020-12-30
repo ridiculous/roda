@@ -3,7 +3,10 @@
 /coverage/
 /www/public/*.html
 /www/public/rdoc/
+/spec/iv.erb
+/spec/tmp.txt
 /spec/assets/app.*.css
+/spec/assets/css/importdep.scss
 /spec/assets/app.*.js
 /spec/assets/app.*.css.gz
 /spec/assets/app.*.js.gz

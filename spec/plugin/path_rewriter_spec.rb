@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "path_rewriter plugin" do 
   it "allows rewriting remaining path or PATH_INFO" do

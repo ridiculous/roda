@@ -9,7 +9,7 @@ class Roda
     #   plugin :pass
     #
     #   route do |r|
-    #     r.on "foo/:bar" do |bar|
+    #     r.on "foo", :bar do |bar|
     #       r.pass if bar == 'baz'
     #       "/foo/#{bar} (not baz)"
     #     end

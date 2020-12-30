@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "head plugin" do 
   it "considers HEAD requests as GET requests which return no body" do
@@ -31,5 +31,22 @@ describe "head plugin" do
 
     body('/b').must_equal 'b'
     status('/b', 'REQUEST_METHOD' => 'HEAD').must_equal 200
+  end
+
+  it "releases resources via body.close" do
+    body = StringIO.new('hi')
+    app(:head) do |r|
+      r.root do
+        r.halt [ 200, {}, body ]
+      end
+    end
+    s, _, b = req('REQUEST_METHOD' => 'HEAD')
+    s.must_equal 200
+    res = String.new
+    body.closed?.must_equal false
+    b.each { |buf| res << buf }
+    b.close
+    body.closed?.must_equal true
+    res.must_equal ''
   end
 end

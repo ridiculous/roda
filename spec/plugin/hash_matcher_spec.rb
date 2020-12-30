@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "hash_matcher plugin" do 
   it "should enable the handling of arbitrary hash keys" do

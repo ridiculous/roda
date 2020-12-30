@@ -4,35 +4,22 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Roda: Routing Tree Web Toolkit<%= " - #{title.capitalize}" unless title == 'index' %></title>
-    <link href='http://fonts.googleapis.com/css?family=Italianno|Open+Sans|PT+Mono' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/styles/default.min.css">
+    <title><%= "#{current_page.capitalize} | " unless current_page == 'index' %>Roda: Routing Tree Web Toolkit</title>
+    <meta name="description" content="<%= description %>">
     <link rel="stylesheet" href="css/roda.css">
-
-<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-<!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-<script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
-<![endif]-->
-
-    <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/highlight.min.js"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
+    <script src="js/roda.js" defer></script>
   </head>
-  <body>
-    <nav class="navbar navbar-default" role="navigation">
-      <div class="container">
-        <a class="navbar-brand" href="index.html">Roda</a>
-        <ul class="nav navbar-nav">
-          <li><a href="why.html">Why</a></li>
-          <li><a href="documentation.html">Documentation</a></li>
-          <li><a href="development.html">Development</a></li>
-        </ul>
-      </div>
-    </nav>
-    <div class="container" id="content">
-      <%= content %>
-    </div>
+  <body class="<%= current_page %>">
+    <% unless current_page == 'index' %>  
+      <nav class='main'>
+        <div class="contain">
+          <a class="<%= 'active ' if current_page == 'index' %>index" href="index.html"><img src="images/roda-logo.svg" alt="Roda" /></a>
+          <a class="<%= 'active ' if current_page == 'documentation' %>documentation" href="documentation.html">Docs</a>
+          <a class="<%= 'active ' if current_page == 'development' %>development" href="development.html">Development</a>
+          <a class="github" href="https://github.com/jeremyevans/roda">Github</a>
+        </div>
+      </nav>
+    <% end %>
+    <div class="content"><%= content %></div>
   </body>
 </html>

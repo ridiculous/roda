@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "delegate plugin" do 
   it "adds request_delegate and response_delegate class methods for delegating" do

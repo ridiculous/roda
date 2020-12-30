@@ -1,54 +1,59 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "flash plugin" do 
-  it "flash.now[] sets flash for current page" do
-    app(:bare) do
-      use Rack::Session::Cookie, :secret => "1"
-      plugin :flash
+  include CookieJar
 
-      route do |r|
-        r.on do
-          flash.now['a'] = 'b'
-          flash['a']
+  [lambda{send(*DEFAULT_SESSION_ARGS); plugin :flash},
+   lambda{plugin :flash; send(*DEFAULT_SESSION_ARGS)}].each do  |config|
+
+    it "flash.now[] sets flash for current page" do
+      app(:bare) do
+        instance_exec(&config)
+
+        route do |r|
+          r.on do
+            flash.now['a'] = 'b'
+            flash['a']
+          end
         end
       end
+
+      body.must_equal 'b'
     end
 
-    body.must_equal 'b'
-  end
+    it "flash[] sets flash for next page" do
+      app(:bare) do
+        instance_exec(&config)
 
-  it "flash[] sets flash for next page" do
-    app(:bare) do
-      use Rack::Session::Cookie, :secret => "1"
-      plugin :flash
+        route do |r|
+          r.get('a'){"c#{flash['a']}"}
+          r.get('f'){flash; session['_flash'].inspect}
 
-      route do |r|
-        r.on 'a' do
-          "c#{flash['a']}"
-        end
-
-        r.on do
           flash['a'] = "b#{flash['a']}"
           flash['a'] || ''
         end
       end
+
+      body.must_equal ''
+      body.must_equal 'b'
+      body.must_equal 'bb'
+
+      body('/a').must_equal 'cbbb'
+      body.must_equal ''
+      body.must_equal 'b'
+      body.must_equal 'bb'
+
+      body('/f').must_equal '{"a"=>"bbb"}'
+      body('/f').must_equal 'nil'
     end
 
-    env = proc{|h| h['Set-Cookie'] ? {'HTTP_COOKIE'=>h['Set-Cookie'].sub("; path=/; HttpOnly", '')} : {}}
-    _, h, b = req
-    b.join.must_equal ''
-    _, h, b = req(env[h])
-    b.join.must_equal 'b'
-    _, h, b = req(env[h])
-    b.join.must_equal 'bb'
-    _, h, b = req('/a', env[h])
-    b.join.must_equal 'cbbb'
-    _, h, b = req(env[h])
-    b.join.must_equal ''
-    _, h, b = req(env[h])
-    b.join.must_equal 'b'
-    _, h, b = req(env[h])
-    b.join.must_equal 'bb'
+    it "works correctly if flash not accessed" do
+      app(:bare) do
+        instance_exec(&config)
+        route{'a'}
+      end
+      body.must_equal 'a'
+    end
   end
 end
 

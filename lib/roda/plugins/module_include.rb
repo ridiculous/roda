@@ -62,7 +62,7 @@ class Roda
         private
 
         # Backbone of the request_module and response_module methods.
-        def module_include(type, mod)
+        def module_include(type, mod, &block)
           if type == :response
             klass = self::RodaResponse
             iv = :@response_module
@@ -82,7 +82,7 @@ class Roda
               klass.send(:include, mod)
             end
 
-            mod.module_eval(&Proc.new) if block_given?
+            mod.module_eval(&block) if block
           end
 
           mod

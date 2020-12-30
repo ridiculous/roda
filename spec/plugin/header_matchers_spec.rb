@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "accept matcher" do
   it "should accept mimetypes and set response Content-Type" do
@@ -16,27 +16,38 @@ end
 describe "header matcher" do
   it "should match if header present" do
     app(:header_matchers) do |r|
-      r.on :header=>"http-accept" do
+      r.on :header=>"accept" do
         "bar"
       end
     end
 
     body("HTTP_ACCEPT" => "application/xml").must_equal  "bar"
+    status("HTTP_HTTP_ACCEPT" => "application/xml").must_equal 404
     status.must_equal 404
   end
 
-  it "should yield the header value if :match_header_yield option is present" do
-    app(:bare) do
-      plugin :header_matchers
-      opts[:match_header_yield] = true
-      route do |r|
-        r.on :header=>"http-accept" do |v|
-          "bar-#{v}"
+  it "should yield the header value" do
+    app(:header_matchers) do |r|
+      r.on :header=>"accept" do |v|
+        "bar-#{v}"
+      end
+    end
+
+    app.opts[:header_matcher_prefix] = true
+    body("HTTP_ACCEPT" => "application/xml").must_equal  "bar-application/xml"
+    status.must_equal 404
+  end
+
+  it "should match content-type and content-length headers" do
+    app(:header_matchers) do |r|
+      r.on :header=>"content-type" do |x|
+        r.on :header=>"content-length" do |y|
+          "bar-#{x}-#{y}"
         end
       end
     end
 
-    body("HTTP_ACCEPT" => "application/xml").must_equal  "bar-application/xml"
+    body("CONTENT_TYPE" => "application/xml", "CONTENT_LENGTH" => "1234").must_equal  "bar-application/xml-1234"
     status.must_equal 404
   end
 end
@@ -64,7 +75,7 @@ describe "host matcher" do
     status("HTTP_HOST" => "foo.com").must_equal 404
   end
 
-  it "doesn't yield host" do
+  it "doesn't yield host if given a string" do
     app(:header_matchers) do |r|
       r.on :host=>"example.com" do |*args|
         args.size.to_s
@@ -81,21 +92,7 @@ describe "host matcher" do
       end
     end
 
-    body("HTTP_HOST" => "foo.example.com").must_equal '0'
-    app.opts[:host_matcher_captures] = true
     body("HTTP_HOST" => "foo.example.com").must_equal 'foo'
-  end
-
-  it "doesn't yields host if passed a string and opts[:host_matcher_captures] is set" do
-    app(:header_matchers) do |r|
-      r.on :host=>'example.com' do |*m|
-        m.empty? ? '0' : m[0]
-      end
-    end
-
-    body("HTTP_HOST" => "example.com").must_equal '0'
-    app.opts[:host_matcher_captures] = true
-    body("HTTP_HOST" => "example.com").must_equal '0'
   end
 end
 

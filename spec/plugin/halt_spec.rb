@@ -1,12 +1,21 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "halt plugin" do
+  it "should still have halt return current response if no arguments given" do
+    app(:halt) do |r|
+      response.write 'foo'
+      r.halt
+    end
+
+    body.must_equal "foo"
+  end
+
   it "should still have halt return rack response as argument given it as argument" do
     app(:halt) do |r|
       r.halt [200, {}, ['foo']]
     end
 
-    body.must_equal  "foo"
+    body.must_equal "foo"
   end
 
   it "should consider string argument as response body" do
@@ -14,7 +23,7 @@ describe "halt plugin" do
       r.halt "foo"
     end
 
-    body.must_equal  "foo"
+    body.must_equal "foo"
   end
 
   it "should consider integer argument as response status" do
@@ -96,6 +105,14 @@ describe "halt plugin" do
   it "should raise an error for too many arguments" do
     app(:halt) do |r|
       r.halt 300, {'a'=>'b'}, "foo", 1
+    end
+
+    proc{req}.must_raise(Roda::RodaError)
+  end
+
+  it "should raise an error for single argument not integer, String, or Array" do
+    app(:halt) do |r|
+      r.halt nil
     end
 
     proc{req}.must_raise(Roda::RodaError)

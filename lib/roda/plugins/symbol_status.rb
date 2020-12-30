@@ -7,10 +7,10 @@ class Roda
     # the default behaviour is used.
     #
     # Examples:
-    #   r.is "needs_authorization"
+    #   r.is "needs_authorization" do
     #     response.status = :unauthorized
     #   end
-    #   r.is "nothing"
+    #   r.is "nothing" do
     #     response.status = :no_content
     #   end
     #

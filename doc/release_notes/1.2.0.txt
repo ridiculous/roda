@@ -322,7 +322,7 @@
   be set to false if you do not want subclasses to inherit
   middleware from the superclass.  This is useful if the
   superclass dispatches to the subclass via r.run, as otherwise
-  it would have to run the the same middleware stack twice.
+  it would have to run the same middleware stack twice.
 
 * A clear_middleware! class accessor has been added, allowing
   you to clear the current middleware stack.

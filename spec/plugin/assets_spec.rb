@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 require 'fileutils'
 
 run_tests = true
@@ -19,6 +19,7 @@ end
 
 if run_tests
   metadata_file = File.expand_path('spec/assets/tmp/precompiled.json')
+  importdep_file = File.expand_path('spec/assets/css/importdep.scss')
   js_file = File.expand_path('spec/assets/js/head/app.js')
   css_file = File.expand_path('spec/assets/css/no_access.css')
   js_mtime = File.mtime(js_file)
@@ -43,6 +44,15 @@ if run_tests
           r.is 'test' do
             "#{assets(:css)}\n#{assets([:js, :head])}"
           end
+
+          r.on 'paths_test' do
+            css_paths = assets_paths(:css)
+            js_paths = assets_paths([:js, :head])
+            empty_paths = assets_paths(:empty)
+            { 'css' => css_paths, 'js' => js_paths, 'empty' => empty_paths }.map do |k, a|
+            "#{k}:#{a.class}:#{a.length}:#{a.join(',')}"
+            end.join("\n")
+          end
         end
       end
     end
@@ -50,10 +60,12 @@ if run_tests
       File.utime(js_atime, js_mtime, js_file)
       File.utime(css_atime, css_mtime, css_file)
       File.delete(metadata_file) if File.file?(metadata_file)
+      File.delete(importdep_file) if File.file?(importdep_file)
     end
     after(:all) do
       FileUtils.rm_r('spec/assets/tmp') if File.directory?('spec/assets/tmp')
       FileUtils.rm_r('spec/public') if File.directory?('spec/public')
+      FileUtils.rm(Dir['spec/assets/app.*.{js,css}*'])
     end
 
     def gunzip(body)
@@ -138,6 +150,69 @@ if run_tests
       app.assets_opts.values_at(*keys).must_equal [{'Content-Type'=>"C", 'A'=>'B1', 'C'=>'D', 'E'=>'G'}, {'Content-Type'=>"C", 'A'=>'B', 'E'=>'F1'}, {'a'=>'b', 'c'=>'d1'}]
     end
 
+    it 'assets_paths should return arrays of source paths' do
+      html = body('/paths_test')
+      html.scan('css:Array:2:/assets/css/app.scss,/assets/css/raw.css').length.must_equal 1
+      html.scan('js:Array:1:/assets/js/head/app.js').length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+    end
+
+    it 'assets_paths should return the compiled path in an array' do
+      app.compile_assets
+      html = body('/paths_test')
+      css_hash = app.assets_opts[:compiled]['css']
+      js_hash = app.assets_opts[:compiled]['js.head']
+      html.scan("css:Array:1:/assets/app.#{css_hash}.css").length.must_equal 1
+      html.scan("js:Array:1:/assets/app.head.#{js_hash}.js").length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+    end
+
+    it 'assets_paths should return arrays of relative source paths if the :relative_paths plugin option is used' do
+      app.plugin :assets, :relative_paths=>true
+
+      html = body('/paths_test')
+      html.scan('css:Array:2:./assets/css/app.scss,./assets/css/raw.css').length.must_equal 1
+      html.scan('js:Array:1:./assets/js/head/app.js').length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+
+      html = body('/paths_test/foo')
+      html.scan('css:Array:2:../assets/css/app.scss,../assets/css/raw.css').length.must_equal 1
+      html.scan('js:Array:1:../assets/js/head/app.js').length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+
+      html = body('/paths_test/foo/')
+      html.scan('css:Array:2:../../assets/css/app.scss,../../assets/css/raw.css').length.must_equal 1
+      html.scan('js:Array:1:../../assets/js/head/app.js').length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+
+      html = body('/paths_test/foo/bar')
+      html.scan('css:Array:2:../../assets/css/app.scss,../../assets/css/raw.css').length.must_equal 1
+      html.scan('js:Array:1:../../assets/js/head/app.js').length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+    end
+
+    it 'assets_paths should use relative paths for compiled paths if the :relative_paths plugin option is used' do
+      app.plugin :assets, :relative_paths=>true
+      app.compile_assets
+      css_hash = app.assets_opts[:compiled]['css']
+      js_hash = app.assets_opts[:compiled]['js.head']
+
+      html = body('/paths_test')
+      html.scan("css:Array:1:./assets/app.#{css_hash}.css").length.must_equal 1
+      html.scan("js:Array:1:./assets/app.head.#{js_hash}.js").length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+
+      html = body('/paths_test/foo')
+      html.scan("css:Array:1:../assets/app.#{css_hash}.css").length.must_equal 1
+      html.scan("js:Array:1:../assets/app.head.#{js_hash}.js").length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+
+      html = body('/paths_test/foo/')
+      html.scan("css:Array:1:../../assets/app.#{css_hash}.css").length.must_equal 1
+      html.scan("js:Array:1:../../assets/app.head.#{js_hash}.js").length.must_equal 1
+      html.scan('empty:Array:0').length.must_equal 1
+    end
+
     it 'should handle rendering assets, linking to them, and accepting requests for them when not compiling' do
       html = body('/test')
       html.scan(/<link/).length.must_equal 2
@@ -153,7 +228,73 @@ if run_tests
       js.must_include('console.log')
     end
 
-    it 'should handle rendering assets, linking to them, and accepting requests for them  when :add_script_name app option is used' do
+    it 'should handle rendering assets, linking to them, and accepting requests for them when :timestamp_paths plugin option is used' do
+      app.plugin :assets, :timestamp_paths=>true
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 2
+      html =~ %r{href="(/assets/css/\d+/app\.scss)"}
+      css = body($1)
+      html =~ %r{href="(/assets/css/\d+/raw\.css)"}
+      css2 = body($1)
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/js/\d+/head/app\.js)"}
+      js = body($1)
+      css.must_match(/color: red;/)
+      css2.must_match(/color: blue;/)
+      js.must_include('console.log')
+    end
+
+    it 'should handle rendering assets, linking to them, and accepting requests for them when :timestamp_paths plugin option is used with string value' do
+      app.plugin :assets, :timestamp_paths=>'-'
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 2
+      html =~ %r{href="(/assets/css/\d+-app\.scss)"}
+      css = body($1)
+      html =~ %r{href="(/assets/css/\d+-raw\.css)"}
+      css2 = body($1)
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/js/\d+-head/app\.js)"}
+      js = body($1)
+      css.must_match(/color: red;/)
+      css2.must_match(/color: blue;/)
+      js.must_include('console.log')
+    end
+
+    it 'should not handle non-GET requests for asset rouets' do
+      html = body('/test')
+      html =~ %r{href="(/assets/css/app\.scss)"}
+      html.scan(/<link/).length.must_equal 2
+      html =~ %r{href="(/assets/css/app\.scss)"}
+      status($1, 'REQUEST_METHOD'=>'POST').must_equal 404
+      html =~ %r{href="(/assets/css/raw\.css)"}
+      status($1, 'REQUEST_METHOD'=>'POST').must_equal 404
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/js/head/app\.js)"}
+      status($1, 'REQUEST_METHOD'=>'POST').must_equal 404
+    end
+
+    it 'should handle early hints if the :early_hints option is used' do
+      app.plugin :assets, :early_hints=>true
+      eh = []
+      html = body('/test', 'rack.early_hints'=>proc{|h| eh << h})
+      eh.must_equal [
+        {"Link"=>"</assets/css/app.scss>; rel=preload; as=style\n</assets/css/raw.css>; rel=preload; as=style"},
+        {"Link"=>"</assets/js/head/app.js>; rel=preload; as=script"}
+      ]
+      html.scan(/<link/).length.must_equal 2
+      html =~ %r{href="(/assets/css/app\.scss)"}
+      css = body($1)
+      html =~ %r{href="(/assets/css/raw\.css)"}
+      css2 = body($1)
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/js/head/app\.js)"}
+      js = body($1)
+      css.must_match(/color: red;/)
+      css2.must_match(/color: blue;/)
+      js.must_include('console.log')
+    end
+
+    it 'should handle rendering assets, linking to them, and accepting requests for them when :add_script_name app option is used' do
       app.opts[:add_script_name] = true
       app.plugin :assets
       html = body('/test', 'SCRIPT_NAME'=>'/foo')
@@ -252,14 +393,110 @@ if run_tests
       try_compressor.call(:none, :minjs)
     end
 
+    it 'should not try compressing if concat_only option is used' do
+      try_compressor = proc do |css, js|
+        app.plugin :assets, :css_compressor=>css, :js_compressor=>js, :concat_only=>true
+        app.compile_assets
+        File.read("spec/assets/app.#{app.assets_opts[:compiled]['css']}.css").must_include('color: blue')
+        File.read("spec/assets/app.head.#{app.assets_opts[:compiled]['js.head']}.js").must_include('console.log')
+      end
+
+      try_compressor.call(nil, nil)
+      try_compressor.call(:yui, :yui)
+      try_compressor.call(:none, :closure)
+      try_compressor.call(:none, :uglifier)
+      try_compressor.call(:none, :minjs)
+    end
+
+    it 'should handle custom compression methods that return nil by using uncompressed output' do
+      app.plugin :assets, :css_compressor=>nil, :js_compressor=>nil
+      app.define_singleton_method(:compress_js_yui){|*|}
+      app.define_singleton_method(:compress_css_yui){|*|}
+      app.compile_assets
+      File.read("spec/assets/app.#{app.assets_opts[:compiled]['css']}.css").must_include('color: blue')
+      File.read("spec/assets/app.head.#{app.assets_opts[:compiled]['js.head']}.js").must_include('console.log')
+    end
+
     it 'should handle compiling assets, linking to them, and accepting requests for them' do
+      app.plugin :assets, :js=>{:head => %w'comment_1.js comment_2.js'}
+      app.compile_assets
+      html = body('/test')
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
+      js = body($1)
+      js.must_equal <<END
+// test
+/*
+a = 1;
+*/
+END
+    end
+
+    it 'should handle calling compile_assets multiple times' do
+      app.plugin :assets, :js=>{:head => %w'comment_1.js comment_2.js'}
+      app.compile_assets
+      app.compile_assets
+      html = body('/test')
+      html.scan(/<script/).length.must_equal 1
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
+      js = body($1)
+      js.must_equal <<END
+// test
+/*
+a = 1;
+*/
+END
+    end
+
+    it 'should separate compiled assets with new lines' do
       app.compile_assets
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
+      js = body($1)
+      css.must_match(/color: ?red/)
+      css.must_match(/color: ?blue/)
+      js.must_include('console.log')
+    end
+
+    [[:sha256, 64, 44], [:sha384, 96, 64], [:sha512, 128, 88]].each do |algo, hex_length, base64_length|
+      it "should handle :sri option for subresource integrity #{algo} when compiling assets" do
+        app.plugin :assets, :sri=>algo
+        app.compile_assets
+        html = body('/test')
+        html.scan(/<link/).length.must_equal 1
+        html =~ %r|et" integrity="#{algo}-([^"]+)"|
+        css_hash = $1
+        css_hash.length.must_equal base64_length
+        html =~ %r|href="(/assets/app\.[a-f0-9]{#{hex_length}}\.css)"|
+        css = body($1)
+        [Digest.const_get(algo.to_s.upcase).digest(css)].pack('m').tr("\n", "").must_equal css_hash
+        html.scan(/<script/).length.must_equal 1
+        html =~ %r|pt" integrity="#{algo}-([^"]+)"|
+        js_hash = $1
+        js_hash.length.must_equal base64_length
+        html =~ %r|src="(/assets/app\.head\.[a-f0-9]{#{hex_length}}\.js)"|
+        js = body($1)
+        [Digest.const_get(algo.to_s.upcase).digest(js)].pack('m').tr("\n", "").must_equal js_hash
+        css.must_match(/color: ?red/)
+        css.must_match(/color: ?blue/)
+        js.must_include('console.log')
+      end
+    end
+
+    it "should handle :sri=>nil option for to disable subresource integrity when compiling assets" do
+      app.plugin :assets, :sri=>nil
+      app.compile_assets
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 1
+      html.scan(/<script/).length.must_equal 1
+      html.wont_match %r|et" integrity="|
+      html =~ %r|href="(/assets/app\.[a-f0-9]{64}\.css)"|
+      css = body($1)
+      html =~ %r|src="(/assets/app\.head\.[a-f0-9]{64}\.js)"|
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -271,9 +508,29 @@ if run_tests
       app.compile_assets
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html.must_match %r{href="https://cdn\.example\.com/assets/app\.[a-f0-9]{40}\.css"}
+      html.must_match %r{href="https://cdn\.example\.com/assets/app\.[a-f0-9]{64}\.css"}
       html.scan(/<script/).length.must_equal 1
-      html.must_match %r{src="https://cdn\.example\.com/assets/app\.head\.[a-f0-9]{40}\.js"}
+      html.must_match %r{src="https://cdn\.example\.com/assets/app\.head\.[a-f0-9]{64}\.js"}
+    end
+
+    it 'should not use relative paths when a compiled asset host is used' do
+      app.plugin :assets, :compiled_asset_host=>'https://cdn.example.com', :relative_paths=>true
+      app.compile_assets
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 1
+      html.must_match %r{href="https://cdn\.example\.com/assets/app\.[a-f0-9]{64}\.css"}
+      html.scan(/<script/).length.must_equal 1
+      html.must_match %r{src="https://cdn\.example\.com/assets/app\.head\.[a-f0-9]{64}\.js"}
+    end
+
+    it 'should handle linking to compiled assets when a compiled asset host is used' do
+      app.plugin :assets, :compiled_asset_host=>'https://cdn.example.com'
+      app.compile_assets
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 1
+      html.must_match %r{href="https://cdn\.example\.com/assets/app\.[a-f0-9]{64}\.css"}
+      html.scan(/<script/).length.must_equal 1
+      html.must_match %r{src="https://cdn\.example\.com/assets/app\.head\.[a-f0-9]{64}\.js"}
     end
 
     it 'should handle compiling assets, linking to them, and accepting requests for them when :gzip is set' do
@@ -281,10 +538,10 @@ if run_tests
       app.compile_assets
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.[a-f0-9]{64}\.css)"}
       css_path = $1
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js_path = $1
 
       css = body(css_path)
@@ -305,10 +562,10 @@ if run_tests
       app.plugin :assets
       app.compile_assets
       html = body('/test', 'SCRIPT_NAME'=>'/foo')
-      html =~ %r{href="/foo(/assets/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="/foo(/assets/app\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="/foo(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="/foo(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -321,10 +578,10 @@ if run_tests
       app.compile_assets
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/a/bar/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/a/bar/app\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/a/foo/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/a/foo/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -343,10 +600,10 @@ if run_tests
       end
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.assets\.css\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.assets\.css\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.assets\.js\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.assets\.js\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -366,10 +623,10 @@ if run_tests
       end
       html = body('/test', 'SCRIPT_NAME'=>'/foo')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="/foo(/assets/app\.assets\.css\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="/foo(/assets/app\.assets\.css\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="/foo(/assets/app\.assets\.js\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="/foo(/assets/app\.assets\.js\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -388,10 +645,10 @@ if run_tests
       end
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.assets\.css\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.assets\.css\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.assets\.js\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.assets\.js\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -403,10 +660,10 @@ if run_tests
       app.compile_assets
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       css.must_match(/color: ?red/)
       css.must_match(/color: ?blue/)
@@ -417,7 +674,7 @@ if run_tests
       app.compile_assets(:css)
       html = body('/test')
       html.scan(/<link/).length.must_equal 1
-      html =~ %r{href="(/assets/app\.[a-f0-9]{40}\.css)"}
+      html =~ %r{href="(/assets/app\.[a-f0-9]{64}\.css)"}
       css = body($1)
       html.scan(/<script/).length.must_equal 0
       css.must_match(/color: ?red/)
@@ -429,7 +686,7 @@ if run_tests
       html = body('/test')
       html.scan(/<link/).length.must_equal 0
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       js.must_include('console.log')
     end
@@ -439,7 +696,7 @@ if run_tests
       html = body('/test')
       html.scan(/<link/).length.must_equal 0
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       js.must_include('console.log')
     end
@@ -450,7 +707,7 @@ if run_tests
       html = body('/test')
       html.scan(/<link/).length.must_equal 0
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       js.must_include('console.log')
     end
@@ -461,7 +718,7 @@ if run_tests
       html = body('/test')
       html.scan(/<link/).length.must_equal 0
       html.scan(/<script/).length.must_equal 1
-      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      html =~ %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
       js = body($1)
       js.must_include('console.log')
     end
@@ -506,6 +763,21 @@ if run_tests
       body(loc, 'HTTP_IF_MODIFIED_SINCE'=>lm).must_include('console.log')
     end
 
+    it 'requests for assets should include modifications to content of dependencies' do
+      File.open('spec/assets/css/importdep.scss', 'wb'){|f| f.write('body{color:blue}')}
+      app.plugin :assets, :css=>['import.scss'],
+        :dependencies=>{'spec/assets/css/import.scss'=>'spec/assets/css/importdep.scss'}
+      app.plugin :render, :cache=>false
+      3.times do
+        body('/assets/css/import.scss').must_include('color: blue;')
+      end
+      File.open('spec/assets/css/importdep.scss', 'wb'){|f| f.write('body{color:red}')}
+      File.utime(Time.now+2, Time.now+4, 'spec/assets/css/importdep.scss')
+      3.times do
+        body('/assets/css/import.scss').must_include('color: red;')
+      end
+    end
+
     it 'should do a terminal match for assets' do
       status('/assets/css/app.scss/foo').must_equal 404
     end
@@ -519,7 +791,7 @@ if run_tests
       a = app::RodaRequest.assets_matchers
       a.length.must_equal 1
       a.first.length.must_equal 2
-      a.first.first.must_equal 'js'
+      a.first.first.must_equal :js
       'assets/js/head/app.js'.must_match a.first.last
       'assets/js/head/app2.js'.wont_match a.first.last
     end
@@ -529,6 +801,30 @@ if run_tests
       app::RodaRequest.assets_matchers.must_equal []
     end
 
+    it 'should support :postprocessor option' do
+      postprocessor = lambda do |file, type, content|
+        "file=#{file} type=#{type} tc=#{type.class} #{content.sub('color', 'font')}"
+      end
+
+      app.plugin :assets, :path=>'spec', :js_dir=>nil, :css_dir=>nil, :prefix=>nil,
+        :postprocessor=>postprocessor,
+        :css=>{:assets=>{:css=>%w'app.scss'}}
+      app.route do |r|
+        r.assets
+        r.is 'test' do
+          "#{assets([:css, :assets, :css])}"
+        end
+      end
+      html = body('/test')
+      html.scan(/<link/).length.must_equal 1
+      html =~ %r{href="(/assets/css/app\.scss)"}
+      css = body($1)
+      css.must_match(/app\.scss/)
+      css.must_match(/type=css/)
+      css.must_match(/tc=Symbol/)
+      css.must_match(/font: red;/)
+    end
+
     it 'should support :precompiled option' do
       app.plugin :assets, :precompiled=>metadata_file
       File.exist?(metadata_file).must_equal false
@@ -536,13 +832,13 @@ if run_tests
 
       app.compile_assets
       File.exist?(metadata_file).must_equal true
-      app.allocate.assets([:js, :head]).must_match %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      app.allocate.assets([:js, :head]).must_match %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
 
       app.plugin :assets, :compiled=>false, :precompiled=>false
       app.allocate.assets([:js, :head]).must_equal '<script type="text/javascript"  src="/assets/js/head/app.js"></script>'
 
       app.plugin :assets, :precompiled=>metadata_file
-      app.allocate.assets([:js, :head]).must_match %r{src="(/assets/app\.head\.[a-f0-9]{40}\.js)"}
+      app.allocate.assets([:js, :head]).must_match %r{src="(/assets/app\.head\.[a-f0-9]{64}\.js)"}
     end
 
     it 'should work correctly with json plugin when r.assets is the last method called' do
@@ -564,15 +860,16 @@ if run_tests
 
       app.opts[:root] = '/foo'
       app.plugin :assets
-      app.assets_opts[:path].must_equal '/foo/assets'
-      app.assets_opts[:js_path].must_equal '/foo/assets/js/'
-      app.assets_opts[:css_path].must_equal '/foo/assets/css/'
+      # Work around for Windows
+      app.assets_opts[:path].sub(/\A\w:/, '').must_equal '/foo/assets'
+      app.assets_opts[:js_path].sub(/\A\w:/, '').must_equal '/foo/assets/js/'
+      app.assets_opts[:css_path].sub(/\A\w:/, '').must_equal '/foo/assets/css/'
 
       app.opts[:root] = '/foo/bar'
       app.plugin :assets
-      app.assets_opts[:path].must_equal '/foo/bar/assets'
-      app.assets_opts[:js_path].must_equal '/foo/bar/assets/js/'
-      app.assets_opts[:css_path].must_equal '/foo/bar/assets/css/'
+      app.assets_opts[:path].sub(/\A\w:/, '').must_equal '/foo/bar/assets'
+      app.assets_opts[:js_path].sub(/\A\w:/, '').must_equal '/foo/bar/assets/js/'
+      app.assets_opts[:css_path].sub(/\A\w:/, '').must_equal '/foo/bar/assets/css/'
 
       app.opts[:root] = nil
       app.plugin :assets

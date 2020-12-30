@@ -30,7 +30,9 @@ class Roda
       module ClassMethods
         # Install the given block as a status handler for the given HTTP response code.
         def status_handler(code, &block)
-          opts[:status_handler][code] = block
+          # For backwards compatibility, pass request argument if block accepts argument
+          arity = block.arity == 0 ? 0 : 1
+          opts[:status_handler][code] = [define_roda_method(:"_roda_status_handler_#{code}", arity, &block), arity]
         end
 
         # Freeze the hash of status handlers so that there can be no thread safety issues at runtime.
@@ -41,15 +43,15 @@ class Roda
       end
 
       module InstanceMethods
-        # If routing returns a response we have a handler for, call that handler.
-        def call
-          result = super
+        private
 
-          if (block = opts[:status_handler][result[0]]) && (v = result[2]).is_a?(Array) && v.empty?
-            @_response.headers.clear
-            super(&block)
-          else
-            result
+        # If routing returns a response we have a handler for, call that handler.
+        def _roda_after_20__status_handler(result)
+          if result && (meth, arity = opts[:status_handler][result[0]]; meth) && (v = result[2]).is_a?(Array) && v.empty?
+            res = @_response
+            res.headers.clear
+            res.status = result[0]
+            result.replace(_roda_handle_route{arity == 1 ? send(meth, @_request) : send(meth)})
           end
         end
       end

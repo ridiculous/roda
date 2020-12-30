@@ -34,7 +34,9 @@ class Roda
     module AllVerbs
       module RequestMethods
         %w'delete head options link patch put trace unlink'.each do |verb|
+          # :nocov:
           if ::Rack::Request.method_defined?("#{verb}?")
+          # :nocov:
             class_eval(<<-END, __FILE__, __LINE__+1)
               def #{verb}(*args, &block)
                 _verb(args, &block) if #{verb}?

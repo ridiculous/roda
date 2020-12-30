@@ -1,4 +1,4 @@
-require File.expand_path("spec_helper", File.dirname(File.dirname(__FILE__)))
+require_relative "../spec_helper"
 
 describe "not_allowed plugin" do 
   it "skips the current block if pass is called" do
@@ -62,5 +62,8 @@ describe "not_allowed plugin" do
     body('/c', 'REQUEST_METHOD'=>'PATCH').must_equal 'c'
     status('/c', 'REQUEST_METHOD'=>'PATCH').must_equal 405
     header('Allow', '/c', 'REQUEST_METHOD'=>'PATCH').must_equal 'GET, POST'
+
+    @app.plugin :head
+    header('Allow', '/c', 'REQUEST_METHOD'=>'PATCH').must_equal 'HEAD, GET, POST'
   end
 end

@@ -9,7 +9,7 @@ class Roda
     # It adds a :prefix matcher for matching on the path's prefix,
     # yielding the rest of the matched segment:
     #
-    #   r.on :prefix=>'foo' do |suffix|
+    #   r.on prefix: 'foo' do |suffix|
     #     # Matches '/foo-bar', yielding '-bar'
     #     # Does not match bar-foo
     #   end
@@ -17,7 +17,7 @@ class Roda
     # It adds a :suffix matcher for matching on the path's suffix,
     # yielding the part of the segment before the suffix:
     #
-    #   r.on :suffix=>'bar' do |prefix|
+    #   r.on suffix: 'bar' do |prefix|
     #     # Matches '/foo-bar', yielding 'foo-'
     #     # Does not match bar-foo
     #   end
@@ -25,7 +25,7 @@ class Roda
     # It adds an :extension matcher for matching on the given file extension,
     # yielding the part of the segment before the extension:
     #
-    #   r.on :extension=>'bar' do |reset|
+    #   r.on extension: 'bar' do |reset|
     #     # Matches '/foo.bar', yielding 'foo'
     #     # Does not match bar.foo
     #   end
